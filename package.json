@@ -1,0 +1,12 @@
+{
+  "name": "email-wallet-contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/zkemail/email-wallet-contracts.git",
+  "author": "SoraSuegami <suegamisora@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^1.0.2",
+    "hardhat": "^2.13.0"
+  }
+}
