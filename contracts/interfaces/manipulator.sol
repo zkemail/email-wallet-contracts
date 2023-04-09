@@ -5,7 +5,7 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "../emailVerifier.sol";
 
-interface Manipulator {
+interface IManipulator {
     function verifyBatch(
         bytes calldata paramsBytes,
         bytes calldata acc,
@@ -16,13 +16,17 @@ interface Manipulator {
 
     function retrieveFromAddresses(
         bytes calldata paramsBytes
-    ) external pure returns (string[] memory);
+    ) external view returns (string[] memory);
 
     function retrieveToAddresses(
         bytes calldata paramsBytes
-    ) external pure returns (string[] memory);
+    ) external view returns (string[] memory);
+
+    function retrieveManipulationIds(
+        bytes calldata paramsBytes
+    ) external view returns (uint[] memory);
 
     function retrieveBodyHashes(
         bytes calldata paramsBytes
-    ) external pure returns (string[] memory);
+    ) external view returns (string[] memory);
 }

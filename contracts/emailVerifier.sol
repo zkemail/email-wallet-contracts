@@ -11,6 +11,14 @@ contract EmailVerifier {
     uint numAggregatedEmails;
     uint constant bodyHashBytesLen = 44;
 
+    struct SubstrParams {
+        string bodyHash;
+        uint[] headerSubstrsStart;
+        string[] headerSubstrsString;
+        uint[] bodySubstrsStart;
+        string[] bodySubstrsString;
+    }
+
     constructor(
         address _rawVerifier,
         uint _headerMaxBytesLen,
@@ -27,30 +35,33 @@ contract EmailVerifier {
         bytes calldata acc,
         bytes calldata substringBytes,
         bytes calldata proof
-    ) external view returns (bool) {
-        (
-            string[] memory bodyHashes,
-            uint[][] memory headerSubstrsStart,
-            string[][] memory headerSubstrsString,
-            uint[][] memory bodySubstrsStart,
-            string[][] memory bodySubstrsString
-        ) = abi.decode(
-                substringBytes,
-                (string[], uint[][], string[][], uint[][], string[][])
-            );
+    ) public view returns (bool) {
+        SubstrParams[] memory substrParams = abi.decode(
+            substringBytes,
+            (SubstrParams[])
+        );
+        return verifyInternal(acc, substrParams, proof);
+    }
+
+    function verifyInternal(
+        bytes calldata acc,
+        SubstrParams[] memory substrParams,
+        bytes calldata proof
+    ) internal view returns (bool) {
         bytes memory verifyInput = acc;
-        require(bodyHashes.length == numAggregatedEmails);
-        require(headerSubstrsStart.length == numAggregatedEmails);
-        require(headerSubstrsString.length == numAggregatedEmails);
-        require(bodySubstrsStart.length == numAggregatedEmails);
-        require(bodySubstrsString.length == numAggregatedEmails);
+        // require(substrParams.bodyHashes.length == numAggregatedEmails);
+        // require(substrParams.headerSubstrsStart.length == numAggregatedEmails);
+        // require(substrParams.headerSubstrsString.length == numAggregatedEmails);
+        // require(substrParams.bodySubstrsStart.length == numAggregatedEmails);
+        // require(substrParams.bodySubstrsString.length == numAggregatedEmails);
+        require(substrParams.length == numAggregatedEmails);
         for (uint i = 0; i < numAggregatedEmails; i++) {
             bytes memory emailInstances = encodeInstancesPerEmail(
-                bodyHashes[i],
-                headerSubstrsStart[i],
-                headerSubstrsString[i],
-                bodySubstrsStart[i],
-                bodySubstrsString[i]
+                substrParams[i].bodyHash,
+                substrParams[i].headerSubstrsStart,
+                substrParams[i].headerSubstrsString,
+                substrParams[i].bodySubstrsStart,
+                substrParams[i].bodySubstrsString
             );
             verifyInput = abi.encodePacked(verifyInput, emailInstances);
         }

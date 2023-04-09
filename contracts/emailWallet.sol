@@ -18,7 +18,7 @@ contract EmailWallet {
     mapping(string => address payable) ethAddressOfUser;
     mapping(string => mapping(string => uint)) erc20BalanceOfUser;
     mapping(string => bool) isUsedEmailHash;
-    mapping(uint => Manipulator) manipulatorOfRuleId;
+    mapping(uint => IManipulator) manipulatorOfRuleId;
     mapping(string => ERC20) erc20OfTokenName;
     mapping(string => bool) isRegisteredToken;
 
@@ -37,7 +37,7 @@ contract EmailWallet {
         fixedFee = _fixedFee;
         numRules = _manipulatorAddresses.length;
         for (uint i = 0; i < _manipulatorAddresses.length; i++) {
-            manipulatorOfRuleId[i] = Manipulator(_manipulatorAddresses[i]);
+            manipulatorOfRuleId[i] = IManipulator(_manipulatorAddresses[i]);
         }
         numTokens = _tokenNames.length;
         require(
@@ -82,7 +82,7 @@ contract EmailWallet {
         bytes calldata proof
     ) public {
         require(ruleId < numRules, "invalud rule ID");
-        Manipulator ml = manipulatorOfRuleId[ruleId];
+        IManipulator ml = manipulatorOfRuleId[ruleId];
         require(ml.verifyBatch(paramsBytes, acc, proof), "proof is invalid");
         string[] memory bodyHashes = ml.retrieveBodyHashes(paramsBytes);
         for (uint i = 0; i < bodyHashes.length; i++) {
@@ -113,8 +113,19 @@ contract EmailWallet {
             ethBalanceOfUser[fromAddresses[i]] -= fixedFee;
             aggregator.transfer(fixedFee);
         }
-
-        ml.processBatch(paramsBytes);
+        uint[] memory ids = ml.retrieveManipulationIds(paramsBytes);
+        require(
+            ids.length == bodyHashes.length,
+            "The lengthes of ids and bodyHashes must be equal"
+        );
+        for (uint i = 0; i < ids.length; i++) {
+            require(ids[i] == ruleId, "Extracted Id must be the ruleId");
+        }
+        (bool success, ) = address(ml).delegatecall(
+            abi.encodeWithSignature("processBatch(bytes calldata)", paramsBytes)
+        );
+        require(success, "Manipulation failed");
+        // ml.processBatch(paramsBytes);
         for (uint i = 0; i < bodyHashes.length; i++) {
             isUsedEmailHash[bodyHashes[i]] = true;
         }
