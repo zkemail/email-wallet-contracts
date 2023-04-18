@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 // Uncomment this line to use console.log
 import "hardhat/console.sol";
-import "./interfaces/manipulator.sol";
+import "./interfaces/IManipulator.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // import "./emailVerifier.sol";
@@ -77,58 +77,37 @@ contract EmailWallet {
 
     function process(
         uint ruleId,
-        bytes calldata paramsBytes,
+        bytes calldata param,
         bytes calldata acc,
         bytes calldata proof
     ) public {
         require(ruleId < numRules, "invalud rule ID");
         IManipulator ml = manipulatorOfRuleId[ruleId];
-        require(ml.verifyBatch(paramsBytes, acc, proof), "proof is invalid");
-        string[] memory bodyHashes = ml.retrieveBodyHashes(paramsBytes);
-        for (uint i = 0; i < bodyHashes.length; i++) {
-            require(
-                isUsedEmailHash[bodyHashes[i]] == false,
-                "already used email"
-            );
-        }
-        string[] memory fromAddresses = ml.retrieveFromAddresses(paramsBytes);
+        string memory bodyHash = ml.retrieveBodyHash(param);
+        require(isUsedEmailHash[bodyHash] == false, "already used email");
+        string memory fromAddress = ml.retrieveFromAddress(param);
+        string memory toAddress = ml.retrieveToAddress(param);
         require(
-            fromAddresses.length == bodyHashes.length,
-            "The lengthes of fromAddresses and bodyHashes must be equal"
+            ethAddressOfUser[fromAddress] != address(0),
+            "not registered user"
         );
-        string[] memory toAddresses = ml.retrieveToAddresses(paramsBytes);
         require(
-            toAddresses.length == bodyHashes.length,
-            "The lengthes of toAddresses and bodyHashes must be equal"
+            ethBalanceOfUser[fromAddress] >= fixedFee,
+            "not sufficient balance"
         );
-        for (uint i = 0; i < fromAddresses.length; i++) {
-            require(
-                ethAddressOfUser[fromAddresses[i]] != address(0),
-                "not registered user"
-            );
-            require(
-                ethBalanceOfUser[fromAddresses[i]] >= fixedFee,
-                "not sufficient balance"
-            );
-            ethBalanceOfUser[fromAddresses[i]] -= fixedFee;
-            aggregator.transfer(fixedFee);
-        }
-        uint[] memory ids = ml.retrieveManipulationIds(paramsBytes);
-        require(
-            ids.length == bodyHashes.length,
-            "The lengthes of ids and bodyHashes must be equal"
-        );
-        for (uint i = 0; i < ids.length; i++) {
-            require(ids[i] == ruleId, "Extracted Id must be the ruleId");
-        }
+        ethBalanceOfUser[fromAddress] -= fixedFee;
+        aggregator.transfer(fixedFee);
+        uint id = ml.retrieveManipulationId(param);
+        require(id == ruleId, "Extracted Id must be the ruleId");
         (bool success, ) = address(ml).delegatecall(
-            abi.encodeWithSignature("processBatch(bytes calldata)", paramsBytes)
+            abi.encodeWithSignature(
+                "process(bytes calldata, bytes memory)",
+                param
+            )
         );
         require(success, "Manipulation failed");
         // ml.processBatch(paramsBytes);
-        for (uint i = 0; i < bodyHashes.length; i++) {
-            isUsedEmailHash[bodyHashes[i]] = true;
-        }
+        isUsedEmailHash[bodyHash] = true;
     }
 
     function withdrawETH(string memory fromAddress, uint amount) public {
