@@ -13,7 +13,11 @@ interface IManipulator {
     // ) external view returns (bool);
 
     // function processBatch(bytes calldata paramsBytes) external;
-    function process(bytes calldata param, bytes memory proof) external;
+    function process(
+        bytes calldata param,
+        bytes calldata acc,
+        bytes memory proof
+    ) external;
 
     function retrieveFromAddress(
         bytes calldata param

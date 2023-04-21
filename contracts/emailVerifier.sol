@@ -49,11 +49,6 @@ contract EmailVerifier {
         bytes calldata proof
     ) internal view returns (bool) {
         bytes memory verifyInput = acc;
-        // require(substrParams.bodyHashes.length == numAggregatedEmails);
-        // require(substrParams.headerSubstrsStart.length == numAggregatedEmails);
-        // require(substrParams.headerSubstrsString.length == numAggregatedEmails);
-        // require(substrParams.bodySubstrsStart.length == numAggregatedEmails);
-        // require(substrParams.bodySubstrsString.length == numAggregatedEmails);
         require(substrParams.length == numAggregatedEmails);
         for (uint i = 0; i < numAggregatedEmails; i++) {
             bytes memory emailInstances = encodeInstancesPerEmail(

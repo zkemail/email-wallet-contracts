@@ -6,15 +6,11 @@ import "hardhat/console.sol";
 import "./Verifier.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-abstract contract VerifierWrapper {
+contract VerifierWrapper {
     using Strings for uint;
     uint constant HEADER_MAX_BYTE_SIZE = 512;
     uint constant BODY_MAX_BYTE_SIZE = 512;
     Verifier verifier;
-    // uint constant HEADER_SUBSTRS_SIZE = 4;
-    // uint constant BODY_SUBSTRS_SIZE = 3;
-    // uint constant ALL_INPUT_BYTES_SIZE =
-    //     64 + 2 * (HEADER_MAX_BYTE_SIZE + BODY_MAX_BYTE_SIZE);
 
     struct Param {
         uint bodyHashStart;
@@ -23,7 +19,7 @@ abstract contract VerifierWrapper {
         string fromAddressString;
         uint toAddressStart;
         string toAddressString;
-        uint manipulationIdStart;
+        uint subjectStart;
         uint manipulationIdUint;
         uint substr0Start;
         uint substr0IntPart;
@@ -40,13 +36,30 @@ abstract contract VerifierWrapper {
 
     function verifyWrap(
         Param memory param,
+        bytes calldata acc,
         bytes calldata proof
-    ) internal view returns (bool) {
+    ) public view returns (bool) {
         bytes memory publicInputBytes = convertParamToBytes(param);
-        uint publicHash = uint(sha256(publicInputBytes));
-        uint[] memory pubInputs = new uint[](2);
-        pubInputs[0] = publicHash & ((1 << 128) - 1);
-        pubInputs[1] = publicHash >> 128;
+        bytes32 publicHash = sha256(publicInputBytes);
+        console.log("publicHash %s", uint(publicHash));
+        uint[] memory pubInputs = new uint[](1);
+        // uint[16] memory accInputs = abi.decode(acc, (uint[16]));
+        // for (uint i = 0; i < 16; i++) {
+        //     console.log("%s-th acc %s", i, accInputs[i]);
+        //     pubInputs[i] = accInputs[i];
+        // }
+        uint coeff = 1;
+        pubInputs[0] = 0;
+        // pubInputs[17] = 0;
+        for (uint i = 0; i < 31; i++) {
+            pubInputs[0] += (coeff * uint(uint8(publicHash[i])));
+            // pubInputs[17] += (coeff * uint(uint8(publicHash[16 + i])));
+            coeff = coeff << 8;
+        }
+        // pubInputs[12] = 0xa33d4a7bf0543cea77bff0914c046818;
+        // pubInputs[13] = 0x5d874980596f029b25350f4a9f45315f;
+        console.log("pubInput %s", pubInputs[0]);
+        // console.log("pubInput 2 %s", pubInputs[17]);
         return verifier.verify(pubInputs, proof);
     }
 
@@ -78,14 +91,15 @@ abstract contract VerifierWrapper {
             maskedStrPart[param.toAddressStart + i] = toAddressBytes[i];
             substrIdsPart[param.toAddressStart + i] = bytes1(uint8(3));
         }
-        bytes memory manipulationIdBytes = bytes(
-            param.manipulationIdUint.toString()
+        bytes memory subjectBytes = bytes(
+            string.concat(
+                "Email Wallet Manipulation ID ",
+                param.manipulationIdUint.toString()
+            )
         );
-        for (uint i = 0; i < manipulationIdBytes.length; i++) {
-            maskedStrPart[param.manipulationIdStart + i] = manipulationIdBytes[
-                i
-            ];
-            substrIdsPart[param.manipulationIdStart + i] = bytes1(uint8(4));
+        for (uint i = 0; i < subjectBytes.length; i++) {
+            maskedStrPart[param.subjectStart + i] = subjectBytes[i];
+            substrIdsPart[param.subjectStart + i] = bytes1(uint8(4));
         }
 
         bytes memory substr0Bytes = bytes(
@@ -96,18 +110,30 @@ abstract contract VerifierWrapper {
             )
         );
         for (uint i = 0; i < substr0Bytes.length; i++) {
-            maskedStrPart[param.substr0Start + i] = substr0Bytes[i];
-            substrIdsPart[param.substr0Start + i] = bytes1(uint8(1));
+            maskedStrPart[
+                HEADER_MAX_BYTE_SIZE + param.substr0Start + i
+            ] = substr0Bytes[i];
+            substrIdsPart[
+                HEADER_MAX_BYTE_SIZE + param.substr0Start + i
+            ] = bytes1(uint8(1));
         }
         bytes memory substr1Bytes = bytes(param.substr1String);
         for (uint i = 0; i < substr1Bytes.length; i++) {
-            maskedStrPart[param.substr1Start + i] = substr1Bytes[i];
-            substrIdsPart[param.substr1Start + i] = bytes1(uint8(2));
+            maskedStrPart[
+                HEADER_MAX_BYTE_SIZE + param.substr1Start + i
+            ] = substr1Bytes[i];
+            substrIdsPart[
+                HEADER_MAX_BYTE_SIZE + param.substr1Start + i
+            ] = bytes1(uint8(2));
         }
         bytes memory substr2Bytes = bytes(param.substr2String);
         for (uint i = 0; i < substr2Bytes.length; i++) {
-            maskedStrPart[param.substr2Start + i] = substr2Bytes[i];
-            substrIdsPart[param.substr2Start + i] = bytes1(uint8(3));
+            maskedStrPart[
+                HEADER_MAX_BYTE_SIZE + param.substr2Start + i
+            ] = substr2Bytes[i];
+            substrIdsPart[
+                HEADER_MAX_BYTE_SIZE + param.substr2Start + i
+            ] = bytes1(uint8(3));
         }
 
         // EmailVerifier.SubstrParams memory substrParams;

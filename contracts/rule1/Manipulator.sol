@@ -48,9 +48,13 @@ contract Manipulator is IManipulator, VerifierWrapper {
     //     }
     // }
 
-    function process(bytes memory param, bytes calldata proof) external {
+    function process(
+        bytes memory param,
+        bytes calldata acc,
+        bytes calldata proof
+    ) external {
         Param memory param = abi.decode(param, (Param));
-        require(VerifierWrapper.verifyWrap(param, proof), "invalid proof");
+        require(VerifierWrapper.verifyWrap(param, acc, proof), "invalid proof");
         if (keccak256(bytes(param.substr1String)) == ETH_NAME_HASH) {
             uint amount = param.substr0IntPart *
                 1e18 +
