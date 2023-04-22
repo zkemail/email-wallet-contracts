@@ -13,6 +13,8 @@ contract VerifierWrapper {
     Verifier verifier;
 
     struct Param {
+        string headerHash;
+        bytes publicKey;
         uint bodyHashStart;
         string bodyHashString;
         uint fromAddressStart;
@@ -66,9 +68,11 @@ contract VerifierWrapper {
     function convertParamToBytes(
         Param memory param
     ) private pure returns (bytes memory) {
-        bytes memory bodyHashPart = abi.encodePacked(
+        bytes memory metaBytes = abi.encodePacked(
+            bytes(param.headerHash),
             bytes(param.bodyHashString),
-            new bytes(64 - 44)
+            new bytes(128 - 32 - 44),
+            param.publicKey
         );
         bytes memory maskedStrPart = new bytes(
             HEADER_MAX_BYTE_SIZE + BODY_MAX_BYTE_SIZE
@@ -135,6 +139,6 @@ contract VerifierWrapper {
                 HEADER_MAX_BYTE_SIZE + param.substr2Start + i
             ] = bytes1(uint8(3));
         }
-        return abi.encodePacked(bodyHashPart, maskedStrPart, substrIdsPart);
+        return abi.encodePacked(metaBytes, maskedStrPart, substrIdsPart);
     }
 }

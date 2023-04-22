@@ -21,12 +21,14 @@ contract EmailWallet {
     mapping(uint => IManipulator) public manipulatorOfRuleId;
     mapping(string => ERC20) public erc20OfTokenName;
     mapping(string => bool) public isRegisteredToken;
+    bytes32 validPublicKeyHash; // Here we fix our public key to the gmail one.
 
     string constant ETH_NAME = "ETH";
 
     constructor(
         string memory _aggregatorToAddress,
         uint _fixedFee,
+        bytes memory _publicKey,
         address[] memory _manipulatorAddresses,
         string[] memory _tokenNames,
         address[] memory _erc20Addresses
@@ -35,6 +37,7 @@ contract EmailWallet {
         aggregatorToAddress = _aggregatorToAddress;
         numRules = _manipulatorAddresses.length;
         fixedFee = _fixedFee;
+        validPublicKeyHash = keccak256(_publicKey);
         numRules = _manipulatorAddresses.length;
         for (uint i = 0; i < _manipulatorAddresses.length; i++) {
             manipulatorOfRuleId[i] = IManipulator(_manipulatorAddresses[i]);
@@ -85,12 +88,16 @@ contract EmailWallet {
         IManipulator ml = manipulatorOfRuleId[ruleId - 1];
         require(ml.verifyWrap(param, acc, proof), "invalid proof");
         IManipulator.RetrievedData memory data = ml.retrieveData(param);
-        string memory bodyHash = data.bodyHash;
-        require(isUsedEmailHash[bodyHash] == false, "already used email");
+        string memory headerHash = data.headerHash;
+        require(isUsedEmailHash[headerHash] == false, "already used email");
         require(
             keccak256(bytes(data.toAddress)) ==
                 keccak256(bytes(aggregatorToAddress)),
             "invalid to email address"
+        );
+        require(
+            keccak256(data.publicKey) == validPublicKeyHash,
+            "invalid public key"
         );
         string memory fromAddress = data.fromAddress;
         require(
@@ -116,7 +123,7 @@ contract EmailWallet {
             )
         );
         require(success, "Manipulation failed");
-        isUsedEmailHash[bodyHash] = true;
+        isUsedEmailHash[headerHash] = true;
     }
 
     function withdrawETH(string memory fromAddress, uint amount) public {

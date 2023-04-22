@@ -13,10 +13,11 @@ interface IManipulator {
 
     // function processBatch(bytes calldata paramsBytes) external;
     struct RetrievedData {
+        string headerHash;
+        bytes publicKey;
         string fromAddress;
         string toAddress;
         uint manipulationId;
-        string bodyHash;
     }
 
     function verifyWrap(

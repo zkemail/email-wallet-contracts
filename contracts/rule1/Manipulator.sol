@@ -96,10 +96,11 @@ contract Manipulator is IManipulator, VerifierWrapper {
     ) external view returns (RetrievedData memory) {
         Param memory param = abi.decode(param, (Param));
         RetrievedData memory data;
+        data.headerHash = param.headerHash;
+        data.publicKey = param.publicKey;
         data.fromAddress = param.fromAddressString;
         data.toAddress = param.toAddressString;
         data.manipulationId = param.manipulationIdUint;
-        data.bodyHash = param.bodyHashString;
         return data;
     }
 }
