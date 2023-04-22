@@ -14,13 +14,13 @@ contract EmailWallet {
     uint numRules;
     uint numTokens;
     uint fixedFee;
-    mapping(string => uint) ethBalanceOfUser;
-    mapping(string => address payable) ethAddressOfUser;
-    mapping(string => mapping(string => uint)) erc20BalanceOfUser;
-    mapping(string => bool) isUsedEmailHash;
-    mapping(uint => IManipulator) manipulatorOfRuleId;
-    mapping(string => ERC20) erc20OfTokenName;
-    mapping(string => bool) isRegisteredToken;
+    mapping(string => uint) public ethBalanceOfUser;
+    mapping(string => address payable) public ethAddressOfUser;
+    mapping(string => mapping(string => uint)) public erc20BalanceOfUser;
+    mapping(string => bool) public isUsedEmailHash;
+    mapping(uint => IManipulator) public manipulatorOfRuleId;
+    mapping(string => ERC20) public erc20OfTokenName;
+    mapping(string => bool) public isRegisteredToken;
 
     string constant ETH_NAME = "ETH";
 
@@ -33,7 +33,7 @@ contract EmailWallet {
     ) {
         aggregator = payable(msg.sender);
         aggregatorToAddress = _aggregatorToAddress;
-        numRules = 0;
+        numRules = _manipulatorAddresses.length;
         fixedFee = _fixedFee;
         numRules = _manipulatorAddresses.length;
         for (uint i = 0; i < _manipulatorAddresses.length; i++) {
@@ -81,12 +81,18 @@ contract EmailWallet {
         bytes calldata acc,
         bytes calldata proof
     ) public {
-        require(ruleId < numRules, "invalud rule ID");
-        IManipulator ml = manipulatorOfRuleId[ruleId];
-        string memory bodyHash = ml.retrieveBodyHash(param);
+        require(ruleId <= numRules, "invalud rule ID");
+        IManipulator ml = manipulatorOfRuleId[ruleId - 1];
+        require(ml.verifyWrap(param, acc, proof), "invalid proof");
+        IManipulator.RetrievedData memory data = ml.retrieveData(param);
+        string memory bodyHash = data.bodyHash;
         require(isUsedEmailHash[bodyHash] == false, "already used email");
-        string memory fromAddress = ml.retrieveFromAddress(param);
-        string memory toAddress = ml.retrieveToAddress(param);
+        require(
+            keccak256(bytes(data.toAddress)) ==
+                keccak256(bytes(aggregatorToAddress)),
+            "invalid to email address"
+        );
+        string memory fromAddress = data.fromAddress;
         require(
             ethAddressOfUser[fromAddress] != address(0),
             "not registered user"
@@ -97,16 +103,19 @@ contract EmailWallet {
         );
         ethBalanceOfUser[fromAddress] -= fixedFee;
         aggregator.transfer(fixedFee);
-        uint id = ml.retrieveManipulationId(param);
-        require(id == ruleId, "Extracted Id must be the ruleId");
+        require(
+            data.manipulationId == ruleId,
+            "Extracted Id must be the ruleId"
+        );
         (bool success, ) = address(ml).delegatecall(
             abi.encodeWithSignature(
-                "process(bytes calldata, bytes memory)",
-                param
+                "process(bytes,bytes,bytes)",
+                param,
+                acc,
+                proof
             )
         );
         require(success, "Manipulation failed");
-        // ml.processBatch(paramsBytes);
         isUsedEmailHash[bodyHash] = true;
     }
 

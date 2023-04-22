@@ -14,7 +14,11 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      allowUnlimitedContractSize: true
+      allowUnlimitedContractSize: true,
+      blockGasLimit: 9007199254740990,
+      accounts: {
+        accountsBalance: "16013158298274580703223840"
+      },
     }
   }
 };

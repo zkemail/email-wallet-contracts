@@ -48,25 +48,35 @@ contract Manipulator is IManipulator, VerifierWrapper {
     //     }
     // }
 
+    function verifyWrap(
+        bytes calldata param,
+        bytes calldata acc,
+        bytes calldata proof
+    ) external view returns (bool) {
+        Param memory param = abi.decode(param, (Param));
+        return _verifyWrap(param, acc, proof);
+    }
+
     function process(
-        bytes memory param,
+        bytes calldata param,
         bytes calldata acc,
         bytes calldata proof
     ) external {
         Param memory param = abi.decode(param, (Param));
-        require(VerifierWrapper.verifyWrap(param, acc, proof), "invalid proof");
         if (keccak256(bytes(param.substr1String)) == ETH_NAME_HASH) {
             uint amount = param.substr0IntPart *
                 1e18 +
-                param.substr0DecimalPart;
+                param.substr0DecimalPart *
+                1e17;
             require(ethBalanceOfUser[param.fromAddressString] >= amount);
             ethBalanceOfUser[param.fromAddressString] -= amount;
-            ethBalanceOfUser[param.toAddressString] += amount;
+            ethBalanceOfUser[param.substr2String] += amount;
         } else {
             require(isRegisteredToken[param.substr1String]);
             uint amount = param.substr0IntPart *
                 1e18 +
-                param.substr0DecimalPart;
+                param.substr0DecimalPart *
+                1e17;
             require(
                 erc20BalanceOfUser[param.fromAddressString][
                     param.substr1String
@@ -75,60 +85,21 @@ contract Manipulator is IManipulator, VerifierWrapper {
             erc20BalanceOfUser[param.fromAddressString][
                 param.substr1String
             ] -= amount;
-            erc20BalanceOfUser[param.toAddressString][
+            erc20BalanceOfUser[param.substr2String][
                 param.substr1String
             ] += amount;
         }
     }
 
-    function retrieveFromAddress(
+    function retrieveData(
         bytes calldata param
-    ) external view returns (string memory) {
+    ) external view returns (RetrievedData memory) {
         Param memory param = abi.decode(param, (Param));
-        return param.fromAddressString;
+        RetrievedData memory data;
+        data.fromAddress = param.fromAddressString;
+        data.toAddress = param.toAddressString;
+        data.manipulationId = param.manipulationIdUint;
+        data.bodyHash = param.bodyHashString;
+        return data;
     }
-
-    function retrieveToAddress(
-        bytes calldata param
-    ) external view returns (string memory) {
-        Param memory param = abi.decode(param, (Param));
-        return param.toAddressString;
-    }
-
-    function retrieveManipulationId(
-        bytes calldata param
-    ) external view returns (uint) {
-        Param memory param = abi.decode(param, (Param));
-        return param.manipulationIdUint;
-    }
-
-    function retrieveBodyHash(
-        bytes calldata param
-    ) external view returns (string memory) {
-        Param memory param = abi.decode(param, (Param));
-        return param.bodyHashString;
-    }
-
-    // function processOne(Param memory params) private {
-    //     if (keccak256(bytes(params.tokenNameString)) == ETH_NAME_HASH) {
-    //         require(
-    //             ethBalanceOfUser[params.fromAddressString] >= params.amountUint
-    //         );
-    //         ethBalanceOfUser[params.fromAddressString] -= params.amountUint;
-    //         ethBalanceOfUser[params.toAddressString] += params.amountUint;
-    //     } else {
-    //         require(isRegisteredToken[params.tokenNameString]);
-    //         require(
-    //             erc20BalanceOfUser[params.fromAddressString][
-    //                 params.tokenNameString
-    //             ] >= params.amountUint
-    //         );
-    //         erc20BalanceOfUser[params.fromAddressString][
-    //             params.tokenNameString
-    //         ] -= params.amountUint;
-    //         erc20BalanceOfUser[params.toAddressString][
-    //             params.tokenNameString
-    //         ] += params.amountUint;
-    //     }
-    // }
 }

@@ -34,31 +34,31 @@ contract VerifierWrapper {
         verifier = Verifier(_verifier);
     }
 
-    function verifyWrap(
+    function _verifyWrap(
         Param memory param,
         bytes calldata acc,
         bytes calldata proof
-    ) public view returns (bool) {
+    ) internal view returns (bool) {
         bytes memory publicInputBytes = convertParamToBytes(param);
         bytes32 publicHash = sha256(publicInputBytes);
-        console.log("publicHash %s", uint(publicHash));
-        uint[] memory pubInputs = new uint[](1);
-        // uint[16] memory accInputs = abi.decode(acc, (uint[16]));
-        // for (uint i = 0; i < 16; i++) {
-        //     console.log("%s-th acc %s", i, accInputs[i]);
-        //     pubInputs[i] = accInputs[i];
-        // }
+        // console.log("publicHash %s", uint(publicHash));
+        uint[] memory pubInputs = new uint[](17);
+        uint[16] memory accInputs = abi.decode(acc, (uint[16]));
+        for (uint i = 0; i < 16; i++) {
+            // console.log("%s-th acc %s", i, accInputs[i]);
+            pubInputs[i] = accInputs[i];
+        }
         uint coeff = 1;
-        pubInputs[0] = 0;
+        pubInputs[16] = 0;
         // pubInputs[17] = 0;
         for (uint i = 0; i < 31; i++) {
-            pubInputs[0] += (coeff * uint(uint8(publicHash[i])));
+            pubInputs[16] += (coeff * uint(uint8(publicHash[i])));
             // pubInputs[17] += (coeff * uint(uint8(publicHash[16 + i])));
             coeff = coeff << 8;
         }
         // pubInputs[12] = 0xa33d4a7bf0543cea77bff0914c046818;
         // pubInputs[13] = 0x5d874980596f029b25350f4a9f45315f;
-        console.log("pubInput %s", pubInputs[0]);
+        // console.log("pubInput %s", pubInputs[16]);
         // console.log("pubInput 2 %s", pubInputs[17]);
         return verifier.verify(pubInputs, proof);
     }
@@ -135,31 +135,6 @@ contract VerifierWrapper {
                 HEADER_MAX_BYTE_SIZE + param.substr2Start + i
             ] = bytes1(uint8(3));
         }
-
-        // EmailVerifier.SubstrParams memory substrParams;
-        // substrParams.bodyHash = params.bodyHashString;
-        // uint[] memory headerSubstrsStart = new uint[](HEADER_SUBSTRS_SIZE);
-        // string[] memory headerSubstrsString = new string[](HEADER_SUBSTRS_SIZE);
-        // headerSubstrsStart[0] = params.bodyHashStart;
-        // headerSubstrsString[0] = params.bodyHashString;
-        // headerSubstrsStart[1] = params.fromAddressStart;
-        // headerSubstrsString[1] = params.fromAddressString;
-        // headerSubstrsStart[2] = params.toAddressStart;
-        // headerSubstrsString[2] = params.toAddressString;
-        // headerSubstrsStart[3] = params.manipulationIdStart;
-        // headerSubstrsString[3] = params.manipulationIdUint.toString();
-        // substrParams.headerSubstrsStart = headerSubstrsStart;
-        // substrParams.headerSubstrsString = headerSubstrsString;
-        // uint[] memory bodySubstrsStart = new uint[](BODY_SUBSTRS_SIZE);
-        // string[] memory bodySubstrsString = new string[](BODY_SUBSTRS_SIZE);
-        // bodySubstrsStart[0] = params.amountStart;
-        // bodySubstrsString[0] = params.amountUint.toString();
-        // bodySubstrsStart[1] = params.tokenNameStart;
-        // bodySubstrsString[1] = params.tokenNameString;
-        // bodySubstrsStart[2] = params.recipientStart;
-        // bodySubstrsString[2] = params.recipientString;
-        // substrParams.bodySubstrsStart = bodySubstrsStart;
-        // substrParams.bodySubstrsString = bodySubstrsString;
         return abi.encodePacked(bodyHashPart, maskedStrPart, substrIdsPart);
     }
 }

@@ -3,7 +3,6 @@ pragma solidity ^0.8.9;
 
 // Uncomment this line to use console.log
 import "hardhat/console.sol";
-import "../emailVerifier.sol";
 
 interface IManipulator {
     // function verifyBatch(
@@ -13,25 +12,26 @@ interface IManipulator {
     // ) external view returns (bool);
 
     // function processBatch(bytes calldata paramsBytes) external;
+    struct RetrievedData {
+        string fromAddress;
+        string toAddress;
+        uint manipulationId;
+        string bodyHash;
+    }
+
+    function verifyWrap(
+        bytes calldata param,
+        bytes calldata acc,
+        bytes calldata proof
+    ) external view returns (bool);
+
     function process(
         bytes calldata param,
         bytes calldata acc,
-        bytes memory proof
+        bytes calldata proof
     ) external;
 
-    function retrieveFromAddress(
+    function retrieveData(
         bytes calldata param
-    ) external view returns (string memory);
-
-    function retrieveToAddress(
-        bytes calldata param
-    ) external view returns (string memory);
-
-    function retrieveManipulationId(
-        bytes calldata param
-    ) external view returns (uint);
-
-    function retrieveBodyHash(
-        bytes calldata param
-    ) external view returns (string memory);
+    ) external view returns (RetrievedData memory);
 }
