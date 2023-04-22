@@ -1,24 +1,24 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
-
-  const lockedAmount = ethers.utils.parseEther("0.001");
-
-  const Lock = await ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
-  console.log(
-    `Lock with ${ethers.utils.formatEther(lockedAmount)}ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
-  );
+    const Factory1 = await ethers.getContractFactory("Verifier");
+    const Factory2 = await ethers.getContractFactory("Manipulator");
+    const Factory3 = await ethers.getContractFactory("EmailWallet");
+    const Verifier = await Factory1.deploy();
+    await Verifier.deployed();
+    const verifierAddress = Verifier.address;
+    // console.log("verifier address: " + verifierAddress);
+    // console.log(VerifierWrapper.address);
+    const Manipulator = await Factory2.deploy(verifierAddress);
+    await Manipulator.deployed();
+    // console.log(Manipulator.address);
+    const EmailWallet = await Factory3.deploy("emailwallet.relayer@gmail.com", 0, [Manipulator.address], [], []);
+    console.log(EmailWallet.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
 main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+    console.error(error);
+    process.exitCode = 1;
 });
