@@ -1,8 +1,9 @@
 import { ethers } from "hardhat";
+import * as fs from "fs/promises";
 
 async function main() {
-    const Factory1 = await ethers.getContractFactory("Verifier");
-    const Factory2 = await ethers.getContractFactory("Manipulator");
+    const Factory1 = await ethers.getContractFactory("contracts/rule1/Verifier.sol:Verifier");
+    const Factory2 = await ethers.getContractFactory("contracts/rule1/Manipulator.sol:Manipulator");
     const Factory3 = await ethers.getContractFactory("EmailWallet");
     const Verifier = await Factory1.deploy();
     await Verifier.deployed();
@@ -12,7 +13,9 @@ async function main() {
     const Manipulator = await Factory2.deploy(verifierAddress);
     await Manipulator.deployed();
     // console.log(Manipulator.address);
-    const EmailWallet = await Factory3.deploy("emailwallet.relayer@gmail.com", 0, [Manipulator.address], [], []);
+    const pk = await fs.readFile("./test_data/gmail_pk.hex", "utf-8");
+    const wethAddress = "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6" // testnet
+    const EmailWallet = await Factory3.deploy("emailwallet.relayer@gmail.com", 0, pk, [Manipulator.address], [], [], wethAddress);
     console.log(EmailWallet.address);
 }
 

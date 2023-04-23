@@ -13,7 +13,7 @@ interface IManipulator {
 
     // function processBatch(bytes calldata paramsBytes) external;
     struct RetrievedData {
-        string headerHash;
+        bytes32 headerHash;
         bytes publicKey;
         string fromAddress;
         string toAddress;

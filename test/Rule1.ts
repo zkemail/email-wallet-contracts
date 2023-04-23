@@ -28,9 +28,9 @@ describe("Rule1Test", function () {
         // await contract.deployed();
 
 
-        const Factory1 = await ethers.getContractFactory("Verifier");
-        const Factory2 = await ethers.getContractFactory("VerifierWrapper");
-        const Factory3 = await ethers.getContractFactory("Manipulator");
+        const Factory1 = await ethers.getContractFactory("contracts/rule1/Verifier.sol:Verifier");
+        const Factory2 = await ethers.getContractFactory("contracts/rule1/VerifierWrapper.sol:VerifierWrapper");
+        const Factory3 = await ethers.getContractFactory("contracts/rule1/Manipulator.sol:Manipulator");
         const Factory4 = await ethers.getContractFactory("EmailWallet");
         Verifier = await Factory1.deploy();
         await Verifier.deployed();
@@ -42,8 +42,11 @@ describe("Rule1Test", function () {
         Manipulator = await Factory3.deploy(verifierAddress);
         await Manipulator.deployed();
         // console.log(Manipulator.address);
-        EmailWallet = await Factory4.deploy("emailwallet.relayer@gmail.com", 0, [Manipulator.address], [], []);
+        const pk = await fs.readFile("./test_data/gmail_pk.hex", "utf-8");
+        EmailWallet = await Factory4.deploy("emailwallet.relayer@gmail.com", 0, pk, [Manipulator.address], [], [], "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
         param = {
+            headerHash: "0xfd5fec7a117b02b6da3ccbae1a898bf6cf6b7be803e45ba148e78a3b9d6c4ca0",
+            publicKey: pk,
             bodyHashStart: 441,
             bodyHashString: "GxMlgwLiypnVrE2C0Sf4yzhcWTkAhSZ5+WERhKhXtlU=",
             fromAddressStart: 198,
@@ -60,7 +63,7 @@ describe("Rule1Test", function () {
             substr2Start: 97,
             substr2String: "alice@gmail.com"
         };
-        paramBytes = ethers.utils.defaultAbiCoder.encode(["(uint256,string,uint256,string,uint256,string,uint256,uint256,uint256,uint256,uint256,uint256,string,uint256,string)"], [[param.bodyHashStart, param.bodyHashString, param.fromAddressStart, param.fromAddressString, param.toAddressStart, param.toAddressString, param.subjectStart, param.manipulationIdUint, param.substr0Start, param.substr0IntPart, param.substr0DecimalPart, param.substr1Start, param.substr1String, param.substr2Start, param.substr2String]])
+        paramBytes = ethers.utils.defaultAbiCoder.encode(["(bytes32,bytes,uint256,string,uint256,string,uint256,string,uint256,uint256,uint256,uint256,uint256,uint256,string,uint256,string)"], [[param.headerHash, param.publicKey, param.bodyHashStart, param.bodyHashString, param.fromAddressStart, param.fromAddressString, param.toAddressStart, param.toAddressString, param.subjectStart, param.manipulationIdUint, param.substr0Start, param.substr0IntPart, param.substr0DecimalPart, param.substr1Start, param.substr1String, param.substr2Start, param.substr2String]])
         acc = await fs.readFile("./test_data/evm_agg_acc.hex", "utf-8");
         proof = await fs.readFile("./test_data/evm_agg_proof.hex", "utf-8");
     });
@@ -74,14 +77,14 @@ describe("Rule1Test", function () {
         const signer = (await ethers.getSigners())[0];
         const depositValue = ethers.utils.parseEther("0.5");
         await EmailWallet.connect(signer).depositETH(param.fromAddressString, { value: depositValue });
-        const initBalance = BigInt(await EmailWallet.ethBalanceOfUser(param.fromAddressString));
+        const initBalance = BigInt(await EmailWallet.balanceOfUser(param.fromAddressString, "ETH"));
         const tx = await EmailWallet.connect(signer).process(1, paramBytes, acc, proof);
         const receipt = await tx.wait();
         console.log(receipt);
-        const newBalance = BigInt(await EmailWallet.ethBalanceOfUser(param.fromAddressString));
+        const newBalance = BigInt(await EmailWallet.balanceOfUser(param.fromAddressString, "ETH"));
         const transferAmount = BigInt(param.substr0IntPart) * BigInt(1e18) + BigInt(param.substr0DecimalPart) * BigInt(1e17)
         expect(initBalance - newBalance).to.equal(transferAmount);
-        const recepientBalance = await EmailWallet.ethBalanceOfUser(param.substr2String);
+        const recepientBalance = await EmailWallet.balanceOfUser(param.substr2String, "ETH");
         expect(recepientBalance).to.equal(transferAmount);
     });
 });

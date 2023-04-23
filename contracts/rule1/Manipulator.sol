@@ -8,45 +8,16 @@ import "../interfaces/IManipulator.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Manipulator is IManipulator, VerifierWrapper {
-    address payable aggregator;
-    string aggregatorToAddress;
-    uint numTokens;
-    uint fixedFee;
-    mapping(string => uint) ethBalanceOfUser;
-    mapping(string => address payable) ethAddressOfUser;
-    mapping(string => mapping(string => uint)) erc20BalanceOfUser;
-    mapping(string => bool) isUsedEmailHash;
-    mapping(uint => IManipulator) manipulatorOfRuleId;
-    mapping(string => ERC20) erc20OfTokenName;
-    mapping(string => bool) isRegisteredToken;
+    mapping(string => address payable) public ethAddressOfUser;
+    mapping(string => mapping(string => uint)) public balanceOfUser;
+    mapping(bytes32 => bool) public isUsedEmailHash;
+    mapping(uint => IManipulator) public manipulatorOfRuleId;
+    mapping(string => address) public erc20OfTokenName;
+    mapping(string => bool) public isRegisteredToken;
 
     string constant ETH_NAME = "ETH";
-    bytes32 constant ETH_NAME_HASH = keccak256("ETH");
 
     constructor(address _verifier) VerifierWrapper(_verifier) {}
-
-    // function verifyBatch(
-    //     bytes calldata paramsBytes,
-    //     bytes calldata acc,
-    //     bytes calldata proof
-    // ) external view returns (bool) {
-    //     Params[] memory paramsArray = abi.decode(paramsBytes, (Params[]));
-    //     require(paramsArray.length == numAggregatedEmails);
-    //     SubstrParams[] memory substrParams = new SubstrParams[](
-    //         numAggregatedEmails
-    //     );
-    //     for (uint i = 0; i < numAggregatedEmails; i++) {
-    //         substrParams[i] = convertToSubstrParams(paramsArray[i]);
-    //     }
-    //     return verifyInternal(acc, substrParams, proof);
-    // }
-
-    // function processBatch(bytes calldata paramsBytes) external {
-    //     Params[] memory paramsArray = abi.decode(paramsBytes, (Params[]));
-    //     for (uint i = 0; i < numAggregatedEmails; i++) {
-    //         processOne(paramsArray[i]);
-    //     }
-    // }
 
     function verifyWrap(
         bytes calldata param,
@@ -63,32 +34,17 @@ contract Manipulator is IManipulator, VerifierWrapper {
         bytes calldata proof
     ) external {
         Param memory param = abi.decode(param, (Param));
-        if (keccak256(bytes(param.substr1String)) == ETH_NAME_HASH) {
-            uint amount = param.substr0IntPart *
-                1e18 +
-                param.substr0DecimalPart *
-                1e17;
-            require(ethBalanceOfUser[param.fromAddressString] >= amount);
-            ethBalanceOfUser[param.fromAddressString] -= amount;
-            ethBalanceOfUser[param.substr2String] += amount;
-        } else {
-            require(isRegisteredToken[param.substr1String]);
-            uint amount = param.substr0IntPart *
-                1e18 +
-                param.substr0DecimalPart *
-                1e17;
-            require(
-                erc20BalanceOfUser[param.fromAddressString][
-                    param.substr1String
-                ] >= amount
-            );
-            erc20BalanceOfUser[param.fromAddressString][
-                param.substr1String
-            ] -= amount;
-            erc20BalanceOfUser[param.substr2String][
-                param.substr1String
-            ] += amount;
-        }
+        string memory tokenStr = param.substr1String;
+        require(isRegisteredToken[tokenStr], "not registered token");
+        ERC20 token = ERC20(erc20OfTokenName[tokenStr]);
+        uint decimals = uint(token.decimals());
+        uint amount = param.substr0IntPart *
+            10 ** decimals +
+            param.substr0DecimalPart *
+            10 ** (decimals - 1);
+        require(balanceOfUser[param.fromAddressString][tokenStr] >= amount);
+        balanceOfUser[param.fromAddressString][tokenStr] -= amount;
+        balanceOfUser[param.substr2String][tokenStr] += amount;
     }
 
     function retrieveData(

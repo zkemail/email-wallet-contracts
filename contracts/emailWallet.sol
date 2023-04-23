@@ -4,26 +4,28 @@ pragma solidity ^0.8.9;
 // Uncomment this line to use console.log
 import "hardhat/console.sol";
 import "./interfaces/IManipulator.sol";
+import "./interfaces/IWETH.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // import "./emailVerifier.sol";
 
 contract EmailWallet {
+    address verifier;
+    mapping(string => address payable) public ethAddressOfUser;
+    mapping(string => mapping(string => uint)) public balanceOfUser;
+    mapping(bytes32 => bool) public isUsedEmailHash;
+    mapping(uint => IManipulator) public manipulatorOfRuleId;
+    mapping(string => address) public erc20OfTokenName;
+    mapping(string => bool) public isRegisteredToken;
+
+    string constant ETH_NAME = "ETH";
+
     address payable aggregator;
     string aggregatorToAddress;
     uint numRules;
     uint numTokens;
     uint fixedFee;
-    mapping(string => uint) public ethBalanceOfUser;
-    mapping(string => address payable) public ethAddressOfUser;
-    mapping(string => mapping(string => uint)) public erc20BalanceOfUser;
-    mapping(string => bool) public isUsedEmailHash;
-    mapping(uint => IManipulator) public manipulatorOfRuleId;
-    mapping(string => ERC20) public erc20OfTokenName;
-    mapping(string => bool) public isRegisteredToken;
     bytes32 validPublicKeyHash; // Here we fix our public key to the gmail one.
-
-    string constant ETH_NAME = "ETH";
 
     constructor(
         string memory _aggregatorToAddress,
@@ -31,7 +33,8 @@ contract EmailWallet {
         bytes memory _publicKey,
         address[] memory _manipulatorAddresses,
         string[] memory _tokenNames,
-        address[] memory _erc20Addresses
+        address[] memory _erc20Addresses,
+        address _wethAddress
     ) {
         aggregator = payable(msg.sender);
         aggregatorToAddress = _aggregatorToAddress;
@@ -48,9 +51,11 @@ contract EmailWallet {
             "tokens length must be equal"
         );
         for (uint i = 0; i < _tokenNames.length; i++) {
-            erc20OfTokenName[_tokenNames[i]] = ERC20(_erc20Addresses[i]);
+            erc20OfTokenName[_tokenNames[i]] = _erc20Addresses[i];
             isRegisteredToken[_tokenNames[i]] = true;
         }
+        erc20OfTokenName[ETH_NAME] = _wethAddress;
+        isRegisteredToken[ETH_NAME] = true;
     }
 
     function depositETH(string memory fromAddress) public payable {
@@ -59,7 +64,14 @@ contract EmailWallet {
         } else if (ethAddressOfUser[fromAddress] != msg.sender) {
             revert("only register eth address user can make new deposits");
         }
-        ethBalanceOfUser[fromAddress] += msg.value;
+        IWETH weth = IWETH(erc20OfTokenName[ETH_NAME]);
+        uint oldWethValue = weth.balanceOf(address(this));
+        weth.deposit{value: msg.value}();
+        require(
+            weth.balanceOf(address(this)) == oldWethValue + msg.value,
+            "the balance of weth is invalid"
+        );
+        balanceOfUser[fromAddress][ETH_NAME] += msg.value;
     }
 
     function depositERC20(
@@ -73,23 +85,27 @@ contract EmailWallet {
         } else if (ethAddressOfUser[fromAddress] != msg.sender) {
             revert("only register eth address user can make new deposits");
         }
-        ERC20 token = erc20OfTokenName[tokenName];
+        ERC20 token = ERC20(erc20OfTokenName[tokenName]);
         token.transferFrom(msg.sender, address(this), amount);
-        erc20BalanceOfUser[fromAddress][tokenName] += amount;
+        balanceOfUser[fromAddress][tokenName] += amount;
     }
 
     function process(
-        uint ruleId,
+        uint manipulationId,
         bytes calldata param,
         bytes calldata acc,
         bytes calldata proof
     ) public {
-        require(ruleId <= numRules, "invalud rule ID");
-        IManipulator ml = manipulatorOfRuleId[ruleId - 1];
+        require(manipulationId <= numRules, "invalud rule ID");
+        IManipulator ml = manipulatorOfRuleId[manipulationId - 1];
         require(ml.verifyWrap(param, acc, proof), "invalid proof");
         IManipulator.RetrievedData memory data = ml.retrieveData(param);
-        string memory headerHash = data.headerHash;
+        bytes32 headerHash = data.headerHash;
         require(isUsedEmailHash[headerHash] == false, "already used email");
+        require(
+            data.manipulationId == manipulationId,
+            "Extracted Id is not equal to the specified manipulationId."
+        );
         require(
             keccak256(bytes(data.toAddress)) ==
                 keccak256(bytes(aggregatorToAddress)),
@@ -105,16 +121,12 @@ contract EmailWallet {
             "not registered user"
         );
         require(
-            ethBalanceOfUser[fromAddress] >= fixedFee,
+            balanceOfUser[fromAddress][ETH_NAME] >= fixedFee,
             "not sufficient balance"
         );
-        ethBalanceOfUser[fromAddress] -= fixedFee;
-        aggregator.transfer(fixedFee);
-        require(
-            data.manipulationId == ruleId,
-            "Extracted Id must be the ruleId"
-        );
-        (bool success, ) = address(ml).delegatecall(
+        balanceOfUser[fromAddress][ETH_NAME] -= fixedFee;
+        balanceOfUser[aggregatorToAddress][ETH_NAME] += fixedFee;
+        (bool success, bytes memory returnData) = address(ml).delegatecall(
             abi.encodeWithSignature(
                 "process(bytes,bytes,bytes)",
                 param,
@@ -122,7 +134,12 @@ contract EmailWallet {
                 proof
             )
         );
-        require(success, "Manipulation failed");
+        if (!success) {
+            if (returnData.length == 0) revert();
+            assembly {
+                revert(add(32, returnData), mload(returnData))
+            }
+        }
         isUsedEmailHash[headerHash] = true;
     }
 
@@ -132,10 +149,17 @@ contract EmailWallet {
             "invalid msg sender"
         );
         require(
-            ethBalanceOfUser[fromAddress] >= amount,
+            balanceOfUser[fromAddress][ETH_NAME] >= amount,
             "not sufficient balance"
         );
-        ethBalanceOfUser[fromAddress] -= amount;
+        balanceOfUser[fromAddress][ETH_NAME] -= amount;
+        IWETH weth = IWETH(erc20OfTokenName[ETH_NAME]);
+        uint oldWethValue = weth.balanceOf(address(this));
+        weth.withdraw(amount);
+        require(
+            weth.balanceOf(address(this)) + amount == oldWethValue,
+            "the balance of weth is invalid"
+        );
         payable(msg.sender).transfer(amount);
     }
 
@@ -150,11 +174,11 @@ contract EmailWallet {
         );
         require(isRegisteredToken[tokenName], "not registered token");
         require(
-            erc20BalanceOfUser[fromAddress][tokenName] >= amount,
+            balanceOfUser[fromAddress][tokenName] >= amount,
             "not sufficient balance"
         );
-        erc20BalanceOfUser[fromAddress][tokenName] -= amount;
-        ERC20 token = erc20OfTokenName[tokenName];
+        balanceOfUser[fromAddress][tokenName] -= amount;
+        ERC20 token = ERC20(erc20OfTokenName[tokenName]);
         token.transferFrom(address(this), msg.sender, amount);
     }
 }
