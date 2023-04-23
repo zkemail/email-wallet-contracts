@@ -45,10 +45,10 @@ describe("Rule1Test", function () {
         const pk = await fs.readFile("./test_data/gmail_pk.hex", "utf-8");
         EmailWallet = await Factory4.deploy("emailwallet.relayer@gmail.com", 0, pk, [Manipulator.address], [], [], "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
         param = {
-            headerHash: "0xfd5fec7a117b02b6da3ccbae1a898bf6cf6b7be803e45ba148e78a3b9d6c4ca0",
+            headerHash: "0xb8d96f390d94a1700360794a5a2b2bfdb32bf85bdf84af86cc71bb6016733523",
             publicKey: pk,
             bodyHashStart: 441,
-            bodyHashString: "GxMlgwLiypnVrE2C0Sf4yzhcWTkAhSZ5+WERhKhXtlU=",
+            bodyHashString: "6oV/dvdjI9OX+lloaA7zQtQCOxFl8mr+n6rPfIGxHpc=",
             fromAddressStart: 198,
             fromAddressString: "suegamisora@gmail.com",
             toAddressStart: 3,
@@ -57,13 +57,14 @@ describe("Rule1Test", function () {
             manipulationIdUint: 1,
             substr0Start: 86,
             substr0IntPart: 0,
-            substr0DecimalPart: 2,
-            substr1Start: 90,
+            substr0DecNumZero: 3,
+            substr0DecimalPart: 1,
+            substr1Start: 93,
             substr1String: "ETH",
-            substr2Start: 97,
+            substr2Start: 100,
             substr2String: "alice@gmail.com"
         };
-        paramBytes = ethers.utils.defaultAbiCoder.encode(["(bytes32,bytes,uint256,string,uint256,string,uint256,string,uint256,uint256,uint256,uint256,uint256,uint256,string,uint256,string)"], [[param.headerHash, param.publicKey, param.bodyHashStart, param.bodyHashString, param.fromAddressStart, param.fromAddressString, param.toAddressStart, param.toAddressString, param.subjectStart, param.manipulationIdUint, param.substr0Start, param.substr0IntPart, param.substr0DecimalPart, param.substr1Start, param.substr1String, param.substr2Start, param.substr2String]])
+        paramBytes = ethers.utils.defaultAbiCoder.encode(["(bytes32,bytes,uint256,string,uint256,string,uint256,string,uint256,uint256,uint256,uint256,uint256,uint256,uint256,string,uint256,string)"], [[param.headerHash, param.publicKey, param.bodyHashStart, param.bodyHashString, param.fromAddressStart, param.fromAddressString, param.toAddressStart, param.toAddressString, param.subjectStart, param.manipulationIdUint, param.substr0Start, param.substr0IntPart, param.substr0DecNumZero, param.substr0DecimalPart, param.substr1Start, param.substr1String, param.substr2Start, param.substr2String]])
         acc = await fs.readFile("./test_data/evm_agg_acc.hex", "utf-8");
         proof = await fs.readFile("./test_data/evm_agg_proof.hex", "utf-8");
     });
@@ -82,7 +83,7 @@ describe("Rule1Test", function () {
         const receipt = await tx.wait();
         console.log(receipt);
         const newBalance = BigInt(await EmailWallet.balanceOfUser(param.fromAddressString, "ETH"));
-        const transferAmount = BigInt(param.substr0IntPart) * BigInt(1e18) + BigInt(param.substr0DecimalPart) * BigInt(1e17)
+        const transferAmount = ethers.utils.parseEther("0.0001");
         expect(initBalance - newBalance).to.equal(transferAmount);
         const recepientBalance = await EmailWallet.balanceOfUser(param.substr2String, "ETH");
         expect(recepientBalance).to.equal(transferAmount);

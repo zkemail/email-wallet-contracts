@@ -41,7 +41,7 @@ contract Manipulator is IManipulator, VerifierWrapper {
         uint amount = param.substr0IntPart *
             10 ** decimals +
             param.substr0DecimalPart *
-            10 ** (decimals - 1);
+            10 ** (decimals - 1 - param.substr0DecNumZero);
         require(balanceOfUser[param.fromAddressString][tokenStr] >= amount);
         balanceOfUser[param.fromAddressString][tokenStr] -= amount;
         balanceOfUser[param.substr2String][tokenStr] += amount;
