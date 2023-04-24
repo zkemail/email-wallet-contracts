@@ -107,10 +107,12 @@ contract VerifierWrapper {
             substrIdsPart[param.subjectStart + i] = bytes1(uint8(4));
         }
 
-        bytes memory substr0Bytes = decStringBytes(
-            param.substr0IntPart,
-            param.substr0DecNumZero,
-            param.substr0DecimalPart
+        bytes memory substr0Bytes = bytes(
+            decString(
+                param.substr0IntPart,
+                param.substr0DecNumZero,
+                param.substr0DecimalPart
+            )
         );
         for (uint i = 0; i < substr0Bytes.length; i++) {
             maskedStrPart[
@@ -141,16 +143,16 @@ contract VerifierWrapper {
         return abi.encodePacked(metaBytes, maskedStrPart, substrIdsPart);
     }
 
-    function decStringBytes(
+    function decString(
         uint intPart,
         uint decNumZero,
         uint decPart
-    ) private pure returns (bytes memory) {
+    ) internal pure returns (string memory) {
         string memory decString = string.concat(intPart.toString(), ".");
         for (uint i = 0; i < decNumZero; i++) {
             decString = string.concat(decString, "0");
         }
         decString = string.concat(decString, decPart.toString());
-        return bytes(decString);
+        return decString;
     }
 }

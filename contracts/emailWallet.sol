@@ -5,7 +5,7 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "./interfaces/IManipulator.sol";
 import "./interfaces/IWETH.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./interfaces/IERC20.sol";
 
 // import "./emailVerifier.sol";
 
@@ -26,6 +26,12 @@ contract EmailWallet {
     uint numTokens;
     uint fixedFee;
     bytes32 validPublicKeyHash; // Here we fix our public key to the gmail one.
+
+    event EmailProcessed(
+        string indexed fromAddress,
+        uint indexed manipulationId,
+        bytes32 indexed emailHeaderHash
+    );
 
     constructor(
         string memory _aggregatorToAddress,
@@ -85,7 +91,7 @@ contract EmailWallet {
         } else if (ethAddressOfUser[fromAddress] != msg.sender) {
             revert("only register eth address user can make new deposits");
         }
-        ERC20 token = ERC20(erc20OfTokenName[tokenName]);
+        IERC20 token = IERC20(erc20OfTokenName[tokenName]);
         token.transferFrom(msg.sender, address(this), amount);
         balanceOfUser[fromAddress][tokenName] += amount;
     }
@@ -141,6 +147,7 @@ contract EmailWallet {
             }
         }
         isUsedEmailHash[headerHash] = true;
+        emit EmailProcessed(fromAddress, manipulationId, headerHash);
     }
 
     function withdrawETH(string memory fromAddress, uint amount) public {
@@ -178,7 +185,7 @@ contract EmailWallet {
             "not sufficient balance"
         );
         balanceOfUser[fromAddress][tokenName] -= amount;
-        ERC20 token = ERC20(erc20OfTokenName[tokenName]);
+        IERC20 token = IERC20(erc20OfTokenName[tokenName]);
         token.transferFrom(address(this), msg.sender, amount);
     }
 }

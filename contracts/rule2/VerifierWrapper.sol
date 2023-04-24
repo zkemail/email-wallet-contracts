@@ -25,6 +25,7 @@ contract VerifierWrapper {
         uint manipulationIdUint;
         uint substr0Start;
         uint substr0IntPart;
+        uint substr0DecNumZero;
         uint substr0DecimalPart;
         uint substr1Start;
         string substr1String;
@@ -107,10 +108,10 @@ contract VerifierWrapper {
         }
 
         bytes memory substr0Bytes = bytes(
-            string.concat(
-                param.substr0IntPart.toString(),
-                ".",
-                param.substr0DecimalPart.toString()
+            decString(
+                param.substr0IntPart,
+                param.substr0DecNumZero,
+                param.substr0DecimalPart
             )
         );
         for (uint i = 0; i < substr0Bytes.length; i++) {
@@ -140,5 +141,18 @@ contract VerifierWrapper {
             ] = bytes1(uint8(3));
         }
         return abi.encodePacked(metaBytes, maskedStrPart, substrIdsPart);
+    }
+
+    function decString(
+        uint intPart,
+        uint decNumZero,
+        uint decPart
+    ) internal pure returns (string memory) {
+        string memory decString = string.concat(intPart.toString(), ".");
+        for (uint i = 0; i < decNumZero; i++) {
+            decString = string.concat(decString, "0");
+        }
+        decString = string.concat(decString, decPart.toString());
+        return decString;
     }
 }

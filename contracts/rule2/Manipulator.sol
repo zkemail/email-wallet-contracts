@@ -5,8 +5,8 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "./VerifierWrapper.sol";
 import "../interfaces/IManipulator.sol";
-import "../interfaces/IUniswapV2Router.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "../interfaces/IUniswapV3Router.sol";
+import "../interfaces/IERC20.sol";
 
 // reference: https://solidity-by-example.org/defi/uniswap-v2/
 contract Manipulator is IManipulator, VerifierWrapper {
@@ -27,9 +27,11 @@ contract Manipulator is IManipulator, VerifierWrapper {
     bytes32 validPublicKeyHash;
 
     address private constant UNISWAP_V2_ROUTER =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
-    IUniswapV2Router01 private router = IUniswapV2Router01(UNISWAP_V2_ROUTER);
+    ISwapRouter private router = ISwapRouter(UNISWAP_V2_ROUTER);
+    // For this example, we will set the pool fee to 0.3%.
+    uint24 public constant poolFee = 3000;
 
     constructor(address _verifier) VerifierWrapper(_verifier) {}
 
@@ -54,59 +56,58 @@ contract Manipulator is IManipulator, VerifierWrapper {
             isRegisteredToken[tokenStrIn] && isRegisteredToken[tokenStrOut],
             "not registered token"
         );
-        ERC20 tokenIn = ERC20(erc20OfTokenName[tokenStrIn]);
-        ERC20 tokenOut = ERC20(erc20OfTokenName[tokenStrOut]);
-        uint decimalsIn = uint(tokenIn.decimals());
+        IERC20 tokenIn = IERC20(erc20OfTokenName[tokenStrIn]);
+        IERC20 tokenOut = IERC20(erc20OfTokenName[tokenStrOut]);
+        console.log(
+            "Router DAI balance %s",
+            tokenOut.balanceOf(UNISWAP_V2_ROUTER)
+        );
+        uint decimals = uint(tokenIn.decimals());
         uint amountIn = param.substr0IntPart *
-            10 ** decimalsIn +
+            10 ** decimals +
             param.substr0DecimalPart *
-            10 ** (decimalsIn - 1);
+            10 ** (decimals - 1 - param.substr0DecNumZero);
         require(balanceOfUser[param.fromAddressString][tokenStrIn] >= amountIn);
         balanceOfUser[param.fromAddressString][tokenStrIn] -= amountIn;
         require(tokenIn.approve(UNISWAP_V2_ROUTER, amountIn), "approve failed");
+        ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter
+            .ExactInputSingleParams({
+                tokenIn: address(tokenIn),
+                tokenOut: address(tokenOut),
+                fee: poolFee,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amountIn,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+        // uint amountOut = router.exactInputSingle(swapParams);
+
         // reference: https://cryptomarketpool.com/how-to-swap-tokens-on-uniswap-using-a-smart-contract/
-        address[] memory path;
-        address wethAddress = erc20OfTokenName[ETH_NAME];
-        if (
-            address(tokenIn) == wethAddress || address(tokenOut) == wethAddress
-        ) {
-            path = new address[](2);
-            path[0] = address(tokenIn);
-            path[1] = address(tokenOut);
-        } else {
-            path = new address[](3);
-            path[0] = address(tokenIn);
-            path[1] = wethAddress;
-            path[2] = address(tokenOut);
-        }
-        (bool success, bytes memory returnData) = UNISWAP_V2_ROUTER.call(
-            abi.encodeWithSignature("factory()")
-        );
-        console.log(
-            "success %s, return %s",
-            success,
-            uint160(bytes20(returnData))
-        );
-        if (!success) {
-            if (returnData.length == 0) revert();
-            assembly {
-                revert(add(32, returnData), mload(returnData))
-            }
-        }
-        console.log("factory %s", router.factory());
-        console.log("ok");
-        uint[] memory amountOutMins = router.getAmountsOut(amountIn, path);
-        // uint amountOutMin = amountOutMins[path.length - 1];
-        // console.log("ok");
-        // console.log("amountOutMin %s", amountOutMin);
+        // address[] memory path;
+        // address wethAddress = erc20OfTokenName[ETH_NAME];
+        // if (
+        //     address(tokenIn) == wethAddress || address(tokenOut) == wethAddress
+        // ) {
+        //     path = new address[](2);
+        //     path[0] = address(tokenIn);
+        //     path[1] = address(tokenOut);
+        // } else {
+        //     path = new address[](3);
+        //     path[0] = address(tokenIn);
+        //     path[1] = wethAddress;
+        //     path[2] = address(tokenOut);
+        // }
+        // uint amountOutMin = router.getAmountsOut(amountIn, path)[
+        //     path.length - 1
+        // ];
         // uint amountOut = router.swapExactTokensForTokens(
         //     amountIn,
-        //     amountOutMin,
+        //     0,
         //     path,
         //     address(this),
         //     block.timestamp
         // )[path.length - 1];
-        // console.log("ok");
         // balanceOfUser[param.fromAddressString][tokenStrOut] += amountOut;
     }
 

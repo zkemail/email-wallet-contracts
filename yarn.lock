@@ -996,6 +996,14 @@
   dependencies:
     "@types/node" "*"
 
+"@uniswap/hardhat-v3-deploy@https://github.com/dmichael/hardhat-v3-deploy.git":
+  "resolved" "git+ssh://git@github.com/dmichael/hardhat-v3-deploy.git#54839252efbdc0ea31c674e544f001c785b25414"
+  "version" "0.1.1"
+  dependencies:
+    "@uniswap/v3-core" "1.0.0"
+    "@uniswap/v3-periphery" "^1.0.1"
+    "cli-table3" "^0.6.0"
+
 "@uniswap/lib@^4.0.1-alpha":
   "integrity" "sha512-f6UIliwBbRsgVLxIaBANF6w09tYqc6Y/qXdsrbEmXHyFA7ILiKrIwRFXe1yOg8M3cksgVsO9N7yuL2DdCGQKBA=="
   "resolved" "https://registry.npmjs.org/@uniswap/lib/-/lib-4.0.1-alpha.tgz"
@@ -1006,17 +1014,12 @@
   "resolved" "https://registry.npmjs.org/@uniswap/v2-core/-/v2-core-1.0.1.tgz"
   "version" "1.0.1"
 
-"@uniswap/v3-core@^1.0.1":
-  "integrity" "sha512-7pVk4hEm00j9tc71Y9+ssYpO6ytkeI0y7WE9P6UcmNzhxPePwyAxImuhVsTqWK9YFvzgtvzJHi64pBl4jUzKMQ=="
-  "resolved" "https://registry.npmjs.org/@uniswap/v3-core/-/v3-core-1.0.1.tgz"
-  "version" "1.0.1"
-
 "@uniswap/v3-core@1.0.0":
   "integrity" "sha512-kSC4djMGKMHj7sLMYVnn61k9nu+lHjMIxgg9CDQT+s2QYLoA56GbSK9Oxr+qJXzzygbkrmuY6cwgP6cW2JXPFA=="
   "resolved" "https://registry.npmjs.org/@uniswap/v3-core/-/v3-core-1.0.0.tgz"
   "version" "1.0.0"
 
-"@uniswap/v3-periphery@^1.4.3":
+"@uniswap/v3-periphery@^1.0.1":
   "integrity" "sha512-80c+wtVzl5JJT8UQskxVYYG3oZb4pkhY0zDe0ab/RX4+8f9+W5d8wI4BT0wLB0wFQTSnbW+QdBSpkHA/vRyGBA=="
   "resolved" "https://registry.npmjs.org/@uniswap/v3-periphery/-/v3-periphery-1.4.3.tgz"
   "version" "1.4.3"
@@ -5757,7 +5760,7 @@
   "resolved" "https://registry.npmjs.org/ts-essentials/-/ts-essentials-7.0.3.tgz"
   "version" "7.0.3"
 
-"ts-node@*", "ts-node@>=8.0.0":
+"ts-node@*", "ts-node@^10.9.1", "ts-node@>=8.0.0":
   "integrity" "sha512-NtVysVPkxxrwFGUUxGYhfux8k78pQB3JqYBXlLRZgdGUqTO5wU/UyHop5p70iEbGhB7q5KmiZiU0Y3KlJrScEw=="
   "resolved" "https://registry.npmjs.org/ts-node/-/ts-node-10.9.1.tgz"
   "version" "10.9.1"

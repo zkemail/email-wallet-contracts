@@ -5,7 +5,7 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "./VerifierWrapper.sol";
 import "../interfaces/IManipulator.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "../interfaces/IERC20.sol";
 
 contract Manipulator is IManipulator, VerifierWrapper {
     mapping(string => address payable) public ethAddressOfUser;
@@ -16,6 +16,12 @@ contract Manipulator is IManipulator, VerifierWrapper {
     mapping(string => bool) public isRegisteredToken;
 
     string constant ETH_NAME = "ETH";
+
+    event EmailTransfer(
+        string indexed amount,
+        string indexed currency,
+        string indexed recipient
+    );
 
     constructor(address _verifier) VerifierWrapper(_verifier) {}
 
@@ -36,7 +42,7 @@ contract Manipulator is IManipulator, VerifierWrapper {
         Param memory param = abi.decode(param, (Param));
         string memory tokenStr = param.substr1String;
         require(isRegisteredToken[tokenStr], "not registered token");
-        ERC20 token = ERC20(erc20OfTokenName[tokenStr]);
+        IERC20 token = IERC20(erc20OfTokenName[tokenStr]);
         uint decimals = uint(token.decimals());
         uint amount = param.substr0IntPart *
             10 ** decimals +
@@ -45,6 +51,12 @@ contract Manipulator is IManipulator, VerifierWrapper {
         require(balanceOfUser[param.fromAddressString][tokenStr] >= amount);
         balanceOfUser[param.fromAddressString][tokenStr] -= amount;
         balanceOfUser[param.substr2String][tokenStr] += amount;
+        string memory amountStr = decString(
+            param.substr0IntPart,
+            param.substr0DecNumZero,
+            param.substr0DecimalPart
+        );
+        emit EmailTransfer(amountStr, param.substr1String, param.substr2String);
     }
 
     function retrieveData(

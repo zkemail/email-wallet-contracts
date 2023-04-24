@@ -43,7 +43,7 @@ describe("Rule1Test", function () {
         await Manipulator.deployed();
         // console.log(Manipulator.address);
         const pk = await fs.readFile("./test_data/gmail_pk.hex", "utf-8");
-        EmailWallet = await Factory4.deploy("emailwallet.relayer@gmail.com", 0, pk, [Manipulator.address], [], [], "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+        EmailWallet = await Factory4.deploy("emailwallet.relayer@gmail.com", 0, pk, [Manipulator.address], [], [], "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6");
         param = {
             headerHash: "0xb8d96f390d94a1700360794a5a2b2bfdb32bf85bdf84af86cc71bb6016733523",
             publicKey: pk,

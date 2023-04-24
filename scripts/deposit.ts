@@ -3,9 +3,9 @@ import { ethers } from "hardhat";
 async function main() {
   const signer = (await ethers.getSigners())[0];
   const Factory = await ethers.getContractFactory("EmailWallet");
-  const contractAddress = "0x581a2d0Ec59E217aD6f405511f2D26Bbc8d17BC4"
+  const contractAddress = "0xe89a6c88f3159dee1d15e84B56cc473F8A71c373"
   console.log(contractAddress);
-  const value = "0.0002";
+  const value = "0.00002";
   console.log(value);
   const emailAddress = "suegamisora@gmail.com";
   console.log(emailAddress);

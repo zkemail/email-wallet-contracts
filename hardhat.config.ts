@@ -1,6 +1,8 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-contract-sizer";
+import "@uniswap/hardhat-v3-deploy";
+
 import * as fs from "fs";
 const config: HardhatUserConfig = {
   solidity: {
@@ -14,23 +16,21 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      allowUnlimitedContractSize: true,
-      blockGasLimit: 9007199254740990,
-      accounts: {
-        accountsBalance: "16013158298274580703223840"
-      },
-      forking: {
-        url: "https://eth-mainnet.g.alchemy.com/v2/evLf9X8p1aPGZ0bTG4SaoSzCTzyQ7b-B",
-        blockNumber: 8876432
-      }
+      // allowUnlimitedContractSize: true,
+      // blockGasLimit: 9007199254740990,
+      // accounts: {
+      //   accountsBalance: "336693040176119404847394056"
+      // },
+      // forking: {
+      //   url: "https://eth-goerli.g.alchemy.com/v2/y-DhDVZMysAkR2ndxXcgapSfDMhFI0_G",
+      // }
     },
     localhost: {
-      allowUnlimitedContractSize: true,
-      blockGasLimit: 9007199254740990,
-      forking: {
-        url: "https://eth-mainnet.g.alchemy.com/v2/evLf9X8p1aPGZ0bTG4SaoSzCTzyQ7b-B",
-        blockNumber: 8876432
-      }
+      // allowUnlimitedContractSize: true,
+      // blockGasLimit: 9007199254740990,
+      // forking: {
+      //   url: "https://eth-goerli.g.alchemy.com/v2/y-DhDVZMysAkR2ndxXcgapSfDMhFI0_G",
+      // }
     },
     goerli: {
       url: "https://eth-goerli.g.alchemy.com/v2/y-DhDVZMysAkR2ndxXcgapSfDMhFI0_G",
