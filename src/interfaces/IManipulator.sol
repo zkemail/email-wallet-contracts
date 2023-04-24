@@ -23,11 +23,7 @@ interface IManipulator {
         bytes calldata proof
     ) external view returns (bool);
 
-    function process(
-        bytes calldata param,
-        bytes calldata acc,
-        bytes calldata proof
-    ) external;
+    function process(bytes calldata param) external;
 
     function retrieveData(
         bytes calldata param

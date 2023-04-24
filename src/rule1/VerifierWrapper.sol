@@ -43,11 +43,11 @@ contract Rule1VerifierWrapper {
     ) internal view returns (bool) {
         bytes memory publicInputBytes = convertParamToBytes(param);
         bytes32 publicHash = sha256(publicInputBytes);
-        console.log("publicHash %s", uint(publicHash));
+        // console.log("publicHash %s", uint(publicHash));
         uint[] memory pubInputs = new uint[](13);
         uint[12] memory accInputs = abi.decode(acc, (uint[12]));
         for (uint i = 0; i < 12; i++) {
-            console.log("%s-th acc %s", i, accInputs[i]);
+            // console.log("%s-th acc %s", i, accInputs[i]);
             pubInputs[i] = accInputs[i];
         }
         uint coeff = 1;
@@ -60,7 +60,7 @@ contract Rule1VerifierWrapper {
         }
         // pubInputs[12] = 0xa33d4a7bf0543cea77bff0914c046818;
         // pubInputs[13] = 0x5d874980596f029b25350f4a9f45315f;
-        console.log("pubInput %s", pubInputs[12]);
+        // console.log("pubInput %s", pubInputs[12]);
         // console.log("pubInput 2 %s", pubInputs[17]);
         return Rule1Verifier(verifier).verify(pubInputs, proof);
     }

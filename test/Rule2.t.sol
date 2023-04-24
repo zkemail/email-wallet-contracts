@@ -21,27 +21,32 @@ contract Rule2Test is Test {
     Rule1VerifierWrapper.Param param;
 
     function setUp() public {
-        verifier1 = new Rule1Verifier();
-        manipulator1 = new Rule1Manipulator(address(verifier1));
-        verifier2 = new Rule2Verifier();
-        manipulator2 = new Rule2Manipulator(address(verifier2));
-        address[] memory manipulators = new address[](2);
-        manipulators[0] = address(manipulator1);
-        manipulators[1] = address(manipulator2);
         publicKey = vm.parseBytes(vm.readFile("./test_data/gmail_pk.hex"));
         string[] memory tokenNames = new string[](1);
         tokenNames[0] = "DAI";
         address[] memory tokenAddresses = new address[](1);
-        tokenAddresses[0] = 0x73967c6a0904aA032C103b4104747E88c566B1A2;
+        tokenAddresses[0] = 0x6B175474E89094C44Da98b954EedeAC495271d0F; //0x73967c6a0904aA032C103b4104747E88c566B1A2;
         wallet = new EmailWallet(
             "emailwallet.relayer@gmail.com",
             0,
             publicKey,
-            manipulators,
             tokenNames,
             tokenAddresses,
-            address(0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6)
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2) //address(0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6)
         );
+        verifier1 = new Rule1Verifier();
+        manipulator1 = new Rule1Manipulator(
+            address(verifier1),
+            address(wallet)
+        );
+        verifier2 = new Rule2Verifier();
+        manipulator2 = new Rule2Manipulator(
+            address(verifier2),
+            address(wallet)
+        );
+        wallet.addManipulation(address(manipulator1));
+        wallet.addManipulation(address(manipulator2));
+
         param.headerHash = bytes32(
             0x0443b5a48ff9163fda82e1bd2a88f4e8314abfa5ddbaf2eb794604e77741fd59
         );
@@ -90,26 +95,16 @@ contract Rule2Test is Test {
             vm.readFile("./test_data/evm_agg_proof_2.hex")
         );
         wallet.process(2, paramBytes, acc, proof);
+        uint transferAmount = 0.000005 ether;
+        uint newETHBalance = wallet.balanceOfUser(
+            param.fromAddressString,
+            "ETH"
+        );
+        assertEq(initETHBalance - transferAmount, newETHBalance);
+        uint newDAIBalance = wallet.balanceOfUser(
+            param.fromAddressString,
+            "DAI"
+        );
+        assertGt(newDAIBalance, 0);
     }
-
-    // function testSimpleTransfer() public {
-    //     wallet.depositETH{value: 0.5 ether}(param.fromAddressString);
-    //     uint initBalance = wallet.balanceOfUser(param.fromAddressString, "ETH");
-    //     bytes memory paramBytes = abi.encode(param);
-    //     bytes memory acc = vm.parseBytes(
-    //         vm.readFile("./test_data/evm_agg_acc_1.hex")
-    //     );
-    //     bytes memory proof = vm.parseBytes(
-    //         vm.readFile("./test_data/evm_agg_proof_1.hex")
-    //     );
-    //     wallet.process(1, paramBytes, acc, proof);
-    //     uint newBalance = wallet.balanceOfUser(param.fromAddressString, "ETH");
-    //     uint transferAmount = 0.0001 ether;
-    //     assertEq(initBalance - transferAmount, newBalance);
-    //     uint recepientBalance = wallet.balanceOfUser(
-    //         param.substr2String,
-    //         "ETH"
-    //     );
-    //     assertEq(recepientBalance, transferAmount);
-    // }
 }

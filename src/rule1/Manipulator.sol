@@ -4,16 +4,23 @@ pragma solidity ^0.8.9;
 import "./VerifierWrapper.sol";
 import "../interfaces/IManipulator.sol";
 import "../interfaces/IERC20.sol";
-import "../Storage.sol";
+import "forge-std/console.sol";
+import "../EmailWallet.sol";
 
-contract Rule1Manipulator is Storage, IManipulator, Rule1VerifierWrapper {
+contract Rule1Manipulator is IManipulator, Rule1VerifierWrapper {
+    EmailWallet wallet;
     event EmailTransfer(
         string indexed amount,
         string indexed currency,
         string indexed recipient
     );
 
-    constructor(address _verifier) Storage() Rule1VerifierWrapper(_verifier) {}
+    constructor(
+        address _verifier,
+        address _wallet
+    ) Rule1VerifierWrapper(_verifier) {
+        wallet = EmailWallet(_wallet);
+    }
 
     function verifyWrap(
         bytes calldata param,
@@ -24,23 +31,29 @@ contract Rule1Manipulator is Storage, IManipulator, Rule1VerifierWrapper {
         return _verifyWrap(param, acc, proof);
     }
 
-    function process(
-        bytes calldata param,
-        bytes calldata acc,
-        bytes calldata proof
-    ) external {
+    function process(bytes calldata param) external {
         Param memory param = abi.decode(param, (Param));
         string memory tokenStr = param.substr1String;
-        require(isRegisteredToken[tokenStr], "not registered token");
-        IERC20 token = IERC20(erc20OfTokenName[tokenStr]);
+        require(wallet.isRegisteredToken(tokenStr), "not registered token");
+        IERC20 token = IERC20(wallet.erc20OfTokenName(tokenStr));
         uint decimals = uint(token.decimals());
         uint amount = param.substr0IntPart *
             10 ** decimals +
             param.substr0DecimalPart *
             10 ** (decimals - 1 - param.substr0DecNumZero);
-        require(balanceOfUser[param.fromAddressString][tokenStr] >= amount);
-        balanceOfUser[param.fromAddressString][tokenStr] -= amount;
-        balanceOfUser[param.substr2String][tokenStr] += amount;
+        require(
+            wallet.balanceOfUser(param.fromAddressString, tokenStr) >= amount
+        );
+        wallet.manipulateBalanceOfUser(
+            param.fromAddressString,
+            tokenStr,
+            wallet.balanceOfUser(param.fromAddressString, tokenStr) - amount
+        );
+        wallet.manipulateBalanceOfUser(
+            param.substr2String,
+            tokenStr,
+            wallet.balanceOfUser(param.substr2String, tokenStr) + amount
+        );
         string memory amountStr = decString(
             param.substr0IntPart,
             param.substr0DecNumZero,

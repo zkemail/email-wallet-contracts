@@ -5,19 +5,22 @@ import "./interfaces/IManipulator.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IERC20.sol";
 import "forge-std/console.sol";
-import "./Storage.sol";
 
-// import "./interfaces/IUniswapV3Router.sol";
-
-contract EmailWallet is Storage {
-    mapping(uint => IManipulator) public manipulatorOfRuleId;
+contract EmailWallet {
+    mapping(string => address payable) public ethAddressOfUser;
+    mapping(string => mapping(string => uint)) public balanceOfUser;
+    mapping(string => address) public erc20OfTokenName;
+    mapping(string => bool) public isRegisteredToken;
+    mapping(uint => IManipulator) public manipulationOfId;
+    mapping(address => bool) public isAllowedManipulator;
     mapping(bytes32 => bool) public isUsedEmailHash;
     address payable aggregator;
     string aggregatorToAddress;
-    uint numRules;
+    uint numManipulations;
     uint numTokens;
     uint fixedFee;
     bytes32 validPublicKeyHash; // Here we fix our public key to the gmail one.
+    string constant ETH_NAME = "ETH";
 
     event EmailProcessed(
         string indexed fromAddress,
@@ -29,20 +32,15 @@ contract EmailWallet is Storage {
         string memory _aggregatorToAddress,
         uint _fixedFee,
         bytes memory _publicKey,
-        address[] memory _manipulatorAddresses,
         string[] memory _tokenNames,
         address[] memory _erc20Addresses,
         address _wethAddress
-    ) Storage() {
+    ) {
         aggregator = payable(msg.sender);
         aggregatorToAddress = _aggregatorToAddress;
-        numRules = _manipulatorAddresses.length;
         fixedFee = _fixedFee;
         validPublicKeyHash = keccak256(_publicKey);
-        numRules = _manipulatorAddresses.length;
-        for (uint i = 0; i < _manipulatorAddresses.length; i++) {
-            manipulatorOfRuleId[i] = IManipulator(_manipulatorAddresses[i]);
-        }
+        numManipulations = 0;
         numTokens = _tokenNames.length;
         require(
             _tokenNames.length == _erc20Addresses.length,
@@ -54,6 +52,33 @@ contract EmailWallet is Storage {
         }
         erc20OfTokenName[ETH_NAME] = _wethAddress;
         isRegisteredToken[ETH_NAME] = true;
+    }
+
+    function addManipulation(address _manipulatorAddress) public {
+        require(msg.sender == aggregator, "only aggregator");
+        uint newId = numManipulations + 1;
+        manipulationOfId[newId] = IManipulator(_manipulatorAddress);
+        isAllowedManipulator[_manipulatorAddress] = true;
+        numManipulations += 1;
+    }
+
+    function manipulateBalanceOfUser(
+        string memory emailAddress,
+        string memory tokenStr,
+        uint value
+    ) public {
+        require(isAllowedManipulator[msg.sender], "only allowed manipulator");
+        balanceOfUser[emailAddress][tokenStr] = value;
+    }
+
+    function approveERC20(
+        string memory tokenStr,
+        uint value
+    ) public returns (bool) {
+        require(isAllowedManipulator[msg.sender], "only allowed manipulator");
+        require(isRegisteredToken[tokenStr], "not registered token");
+        IERC20 erc20 = IERC20(erc20OfTokenName[tokenStr]);
+        return erc20.approve(msg.sender, value);
     }
 
     function depositETH(string memory fromAddress) public payable {
@@ -68,11 +93,6 @@ contract EmailWallet is Storage {
         require(
             weth.balanceOf(address(this)) == oldWethValue + msg.value,
             "the balance of weth is invalid"
-        );
-        console.log(
-            "msg value %s, weth balance %s",
-            msg.value,
-            weth.balanceOf(address(this))
         );
         balanceOfUser[fromAddress][ETH_NAME] += msg.value;
     }
@@ -99,8 +119,8 @@ contract EmailWallet is Storage {
         bytes calldata acc,
         bytes calldata proof
     ) public {
-        require(manipulationId <= numRules, "invalud rule ID");
-        IManipulator ml = manipulatorOfRuleId[manipulationId - 1];
+        require(manipulationId <= numManipulations, "invalud manipulation ID");
+        IManipulator ml = manipulationOfId[manipulationId];
         require(ml.verifyWrap(param, acc, proof), "invalid proof");
         IManipulator.RetrievedData memory data = ml.retrieveData(param);
         bytes32 headerHash = data.headerHash;
@@ -129,20 +149,21 @@ contract EmailWallet is Storage {
         );
         balanceOfUser[fromAddress][ETH_NAME] -= fixedFee;
         balanceOfUser[aggregatorToAddress][ETH_NAME] += fixedFee;
-        (bool success, bytes memory returnData) = address(ml).delegatecall(
-            abi.encodeWithSignature(
-                "process(bytes,bytes,bytes)",
-                param,
-                acc,
-                proof
-            )
-        );
-        if (!success) {
-            if (returnData.length == 0) revert();
-            assembly {
-                revert(add(32, returnData), mload(returnData))
-            }
-        }
+        ml.process(param);
+        // (bool success, bytes memory returnData) = address(ml).delegatecall(
+        //     abi.encodeWithSignature(
+        //         "process(bytes,bytes,bytes)",
+        //         param,
+        //         acc,
+        //         proof
+        //     )
+        // );
+        // if (!success) {
+        //     if (returnData.length == 0) revert();
+        //     assembly {
+        //         revert(add(32, returnData), mload(returnData))
+        //     }
+        // }
         isUsedEmailHash[headerHash] = true;
         emit EmailProcessed(fromAddress, manipulationId, headerHash);
     }

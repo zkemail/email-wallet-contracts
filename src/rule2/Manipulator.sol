@@ -6,18 +6,24 @@ import "../interfaces/IManipulator.sol";
 import "../interfaces/IUniswapV3Router.sol";
 import "../interfaces/IERC20.sol";
 import "forge-std/console.sol";
-import "../Storage.sol";
+import "../EmailWallet.sol";
 
 // reference: https://solidity-by-example.org/defi/uniswap-v2/
-contract Rule2Manipulator is IManipulator, Storage, Rule2VerifierWrapper {
-    // address private constant UNISWAP_V3_ROUTER =
-    //     0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    // uint24 public constant poolFee = 3000;
-    // ISwapRouter private router = ISwapRouter(UNISWAP_V3_ROUTER);
+contract Rule2Manipulator is IManipulator, Rule2VerifierWrapper {
+    address private constant UNISWAP_V3_ROUTER =
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    ISwapRouter private router = ISwapRouter(UNISWAP_V3_ROUTER);
 
     // For this example, we will set the pool fee to 0.3%.
+    uint24 public constant poolFee = 3000;
+    EmailWallet wallet;
 
-    constructor(address _verifier) Storage() Rule2VerifierWrapper(_verifier) {}
+    constructor(
+        address _verifier,
+        address _wallet
+    ) Rule2VerifierWrapper(_verifier) {
+        wallet = EmailWallet(_wallet);
+    }
 
     function verifyWrap(
         bytes calldata param,
@@ -28,47 +34,55 @@ contract Rule2Manipulator is IManipulator, Storage, Rule2VerifierWrapper {
         return _verifyWrap(param, acc, proof);
     }
 
-    function process(
-        bytes calldata param,
-        bytes calldata acc,
-        bytes calldata proof
-    ) external {
+    function process(bytes calldata param) external {
         Param memory param = abi.decode(param, (Param));
         string memory tokenStrIn = param.substr1String;
         string memory tokenStrOut = param.substr2String;
         require(
-            isRegisteredToken[tokenStrIn] && isRegisteredToken[tokenStrOut],
+            wallet.isRegisteredToken(tokenStrIn) &&
+                wallet.isRegisteredToken(tokenStrOut),
             "not registered token"
         );
-        ISwapRouter router = ISwapRouter(
-            0xE592427A0AEce92De3Edee1F18E0157C05861564
-        );
-        IERC20 tokenIn = IERC20(erc20OfTokenName[tokenStrIn]);
-        IERC20 tokenOut = IERC20(erc20OfTokenName[tokenStrOut]);
-        console.log("sender %s", msg.sender);
-        console.log("my address %s", address(this));
-        console.log("My WETH balance %s", tokenIn.balanceOf(address(this)));
+        IERC20 tokenIn = IERC20(wallet.erc20OfTokenName(tokenStrIn));
+        IERC20 tokenOut = IERC20(wallet.erc20OfTokenName(tokenStrOut));
         uint decimals = uint(tokenIn.decimals());
         uint amountIn = param.substr0IntPart *
             10 ** decimals +
             param.substr0DecimalPart *
             10 ** (decimals - 1 - param.substr0DecNumZero);
-        console.log("amountIn %s", amountIn);
-        require(balanceOfUser[param.fromAddressString][tokenStrIn] >= amountIn);
-        balanceOfUser[param.fromAddressString][tokenStrIn] -= amountIn;
-        require(tokenIn.approve(address(router), amountIn), "approve failed");
+        uint curBalanceIn = wallet.balanceOfUser(
+            param.fromAddressString,
+            tokenStrIn
+        );
+        require(curBalanceIn >= amountIn);
+        wallet.manipulateBalanceOfUser(
+            param.fromAddressString,
+            tokenStrIn,
+            curBalanceIn - amountIn
+        );
+        require(
+            wallet.approveERC20(tokenStrIn, amountIn),
+            "approve from wallet to manipulator failed"
+        );
+        require(
+            tokenIn.transferFrom(address(wallet), address(this), amountIn),
+            "transfer from wallet to manipulator failed"
+        );
+        require(
+            tokenIn.approve(address(router), amountIn),
+            "approve from manipulator to router failed"
+        );
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter
             .ExactInputSingleParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                fee: 3000,
-                recipient: address(this),
+                fee: poolFee,
+                recipient: address(wallet),
                 deadline: block.timestamp,
                 amountIn: amountIn,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
-        uint amountOut = router.exactInputSingle(swapParams);
 
         // reference: https://cryptomarketpool.com/how-to-swap-tokens-on-uniswap-using-a-smart-contract/
         // address[] memory path;
@@ -95,7 +109,12 @@ contract Rule2Manipulator is IManipulator, Storage, Rule2VerifierWrapper {
         //     address(this),
         //     block.timestamp
         // )[path.length - 1];
-        balanceOfUser[param.fromAddressString][tokenStrOut] += amountOut;
+        wallet.manipulateBalanceOfUser(
+            param.fromAddressString,
+            tokenStrOut,
+            wallet.balanceOfUser(param.fromAddressString, tokenStrOut) +
+                router.exactInputSingle(swapParams)
+        );
     }
 
     function retrieveData(

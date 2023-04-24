@@ -16,20 +16,18 @@ contract Rule1Test is Test {
     Rule1VerifierWrapper.Param param;
 
     function setUp() public {
-        verifier = new Rule1Verifier();
-        manipulator = new Rule1Manipulator(address(verifier));
-        address[] memory manipulators = new address[](1);
-        manipulators[0] = address(manipulator);
         publicKey = vm.parseBytes(vm.readFile("./test_data/gmail_pk.hex"));
         wallet = new EmailWallet(
             "emailwallet.relayer@gmail.com",
             0,
             publicKey,
-            manipulators,
             new string[](0),
             new address[](0),
-            address(0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6)
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2) //address(0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6)
         );
+        verifier = new Rule1Verifier();
+        manipulator = new Rule1Manipulator(address(verifier), address(wallet));
+        wallet.addManipulation(address(manipulator));
         param.headerHash = bytes32(
             0xb8d96f390d94a1700360794a5a2b2bfdb32bf85bdf84af86cc71bb6016733523
         );
