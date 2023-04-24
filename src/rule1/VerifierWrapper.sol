@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-// Uncomment this line to use console.log
-import "hardhat/console.sol";
 import "./Verifier.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "forge-std/console.sol";
 
-contract VerifierWrapper {
+contract Rule1VerifierWrapper {
     using Strings for uint;
     uint constant HEADER_MAX_BYTE_SIZE = 512;
     uint constant BODY_MAX_BYTE_SIZE = 512;
@@ -44,7 +43,7 @@ contract VerifierWrapper {
     ) internal view returns (bool) {
         bytes memory publicInputBytes = convertParamToBytes(param);
         bytes32 publicHash = sha256(publicInputBytes);
-        // console.log("publicHash %s", uint(publicHash));
+        console.log("publicHash %s", uint(publicHash));
         uint[] memory pubInputs = new uint[](13);
         uint[12] memory accInputs = abi.decode(acc, (uint[12]));
         for (uint i = 0; i < 12; i++) {
@@ -63,7 +62,7 @@ contract VerifierWrapper {
         // pubInputs[13] = 0x5d874980596f029b25350f4a9f45315f;
         console.log("pubInput %s", pubInputs[12]);
         // console.log("pubInput 2 %s", pubInputs[17]);
-        return Verifier(verifier).verify(pubInputs, proof);
+        return Rule1Verifier(verifier).verify(pubInputs, proof);
     }
 
     function convertParamToBytes(

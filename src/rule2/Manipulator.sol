@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-// Uncomment this line to use console.log
-import "hardhat/console.sol";
 import "./VerifierWrapper.sol";
 import "../interfaces/IManipulator.sol";
 import "../interfaces/IUniswapV3Router.sol";
 import "../interfaces/IERC20.sol";
+import "forge-std/console.sol";
 
 // reference: https://solidity-by-example.org/defi/uniswap-v2/
-contract Manipulator is IManipulator, VerifierWrapper {
+contract Rule2Manipulator is IManipulator, Rule2VerifierWrapper {
     mapping(string => address payable) public ethAddressOfUser;
     mapping(string => mapping(string => uint)) public balanceOfUser;
     mapping(bytes32 => bool) public isUsedEmailHash;
@@ -33,7 +32,7 @@ contract Manipulator is IManipulator, VerifierWrapper {
     // For this example, we will set the pool fee to 0.3%.
     uint24 public constant poolFee = 3000;
 
-    constructor(address _verifier) VerifierWrapper(_verifier) {}
+    constructor(address _verifier) Rule2VerifierWrapper(_verifier) {}
 
     function verifyWrap(
         bytes calldata param,
@@ -81,7 +80,7 @@ contract Manipulator is IManipulator, VerifierWrapper {
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
-        // uint amountOut = router.exactInputSingle(swapParams);
+        uint amountOut = router.exactInputSingle(swapParams);
 
         // reference: https://cryptomarketpool.com/how-to-swap-tokens-on-uniswap-using-a-smart-contract/
         // address[] memory path;
@@ -108,7 +107,7 @@ contract Manipulator is IManipulator, VerifierWrapper {
         //     address(this),
         //     block.timestamp
         // )[path.length - 1];
-        // balanceOfUser[param.fromAddressString][tokenStrOut] += amountOut;
+        balanceOfUser[param.fromAddressString][tokenStrOut] += amountOut;
     }
 
     function retrieveData(

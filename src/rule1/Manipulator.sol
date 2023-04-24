@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-// Uncomment this line to use console.log
-import "hardhat/console.sol";
 import "./VerifierWrapper.sol";
 import "../interfaces/IManipulator.sol";
 import "../interfaces/IERC20.sol";
 
-contract Manipulator is IManipulator, VerifierWrapper {
+contract Rule1Manipulator is IManipulator, Rule1VerifierWrapper {
     mapping(string => address payable) public ethAddressOfUser;
     mapping(string => mapping(string => uint)) public balanceOfUser;
     mapping(bytes32 => bool) public isUsedEmailHash;
@@ -23,7 +21,7 @@ contract Manipulator is IManipulator, VerifierWrapper {
         string indexed recipient
     );
 
-    constructor(address _verifier) VerifierWrapper(_verifier) {}
+    constructor(address _verifier) Rule1VerifierWrapper(_verifier) {}
 
     function verifyWrap(
         bytes calldata param,

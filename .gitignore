@@ -3,3 +3,4 @@ cache/
 out/
 .DS_Store
 old_hardhat/
+.env

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-contract Verifier {
+contract Rule2Verifier {
     function verify(
         uint256[] memory pubInputs,
         bytes memory proof
@@ -92,7 +92,7 @@ contract Verifier {
             )
             mstore(
                 add(transcript, 0x0),
-                3803403878579984056982022400603697525900199887706480843692727717850758960242
+                16258268875468025109801601766289138359753205782880550072732758618772675512995
             )
             {
                 let x := mload(add(proof, 0x20))
@@ -4664,11 +4664,11 @@ contract Verifier {
             )
             mstore(
                 add(transcript, 0x50a0),
-                0x18ed580382a7c85e3c1740c1d20e62ed673d393fde2f3ad85c102f92f67639ba
+                0x19d8cec6a52aa8030e75b4f04602f52fbe38e29fee5a082faf2e5e27db8f302b
             )
             mstore(
                 add(transcript, 0x50c0),
-                0x30004d16019c2f91e08b8e457fdea6ca6458a205acbfb0fd046a89a07c608ab9
+                0x1648e9e5cfa66c83da444f77bcfd38578df09238ea795c068165286c8e70c68c
             )
             mstore(add(transcript, 0x50e0), mload(add(transcript, 0x45a0)))
             success := and(
