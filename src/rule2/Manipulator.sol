@@ -6,33 +6,18 @@ import "../interfaces/IManipulator.sol";
 import "../interfaces/IUniswapV3Router.sol";
 import "../interfaces/IERC20.sol";
 import "forge-std/console.sol";
+import "../Storage.sol";
 
 // reference: https://solidity-by-example.org/defi/uniswap-v2/
-contract Rule2Manipulator is IManipulator, Rule2VerifierWrapper {
-    mapping(string => address payable) public ethAddressOfUser;
-    mapping(string => mapping(string => uint)) public balanceOfUser;
-    mapping(bytes32 => bool) public isUsedEmailHash;
-    mapping(uint => IManipulator) public manipulatorOfRuleId;
-    mapping(string => address) public erc20OfTokenName;
-    mapping(string => bool) public isRegisteredToken;
+contract Rule2Manipulator is IManipulator, Storage, Rule2VerifierWrapper {
+    // address private constant UNISWAP_V3_ROUTER =
+    //     0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    // uint24 public constant poolFee = 3000;
+    // ISwapRouter private router = ISwapRouter(UNISWAP_V3_ROUTER);
 
-    string constant ETH_NAME = "ETH";
-
-    address payable aggregator;
-    string aggregatorToAddress;
-    uint numRules;
-    uint numTokens;
-    uint fixedFee;
-    bytes32 validPublicKeyHash;
-
-    address private constant UNISWAP_V2_ROUTER =
-        0xE592427A0AEce92De3Edee1F18E0157C05861564;
-
-    ISwapRouter private router = ISwapRouter(UNISWAP_V2_ROUTER);
     // For this example, we will set the pool fee to 0.3%.
-    uint24 public constant poolFee = 3000;
 
-    constructor(address _verifier) Rule2VerifierWrapper(_verifier) {}
+    constructor(address _verifier) Storage() Rule2VerifierWrapper(_verifier) {}
 
     function verifyWrap(
         bytes calldata param,
@@ -55,25 +40,28 @@ contract Rule2Manipulator is IManipulator, Rule2VerifierWrapper {
             isRegisteredToken[tokenStrIn] && isRegisteredToken[tokenStrOut],
             "not registered token"
         );
+        ISwapRouter router = ISwapRouter(
+            0xE592427A0AEce92De3Edee1F18E0157C05861564
+        );
         IERC20 tokenIn = IERC20(erc20OfTokenName[tokenStrIn]);
         IERC20 tokenOut = IERC20(erc20OfTokenName[tokenStrOut]);
-        console.log(
-            "Router DAI balance %s",
-            tokenOut.balanceOf(UNISWAP_V2_ROUTER)
-        );
+        console.log("sender %s", msg.sender);
+        console.log("my address %s", address(this));
+        console.log("My WETH balance %s", tokenIn.balanceOf(address(this)));
         uint decimals = uint(tokenIn.decimals());
         uint amountIn = param.substr0IntPart *
             10 ** decimals +
             param.substr0DecimalPart *
             10 ** (decimals - 1 - param.substr0DecNumZero);
+        console.log("amountIn %s", amountIn);
         require(balanceOfUser[param.fromAddressString][tokenStrIn] >= amountIn);
         balanceOfUser[param.fromAddressString][tokenStrIn] -= amountIn;
-        require(tokenIn.approve(UNISWAP_V2_ROUTER, amountIn), "approve failed");
+        require(tokenIn.approve(address(router), amountIn), "approve failed");
         ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter
             .ExactInputSingleParams({
                 tokenIn: address(tokenIn),
                 tokenOut: address(tokenOut),
-                fee: poolFee,
+                fee: 3000,
                 recipient: address(this),
                 deadline: block.timestamp,
                 amountIn: amountIn,

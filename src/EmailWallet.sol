@@ -4,20 +4,14 @@ pragma solidity ^0.8.9;
 import "./interfaces/IManipulator.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IERC20.sol";
+import "forge-std/console.sol";
+import "./Storage.sol";
 
-// import "./emailVerifier.sol";
+// import "./interfaces/IUniswapV3Router.sol";
 
-contract EmailWallet {
-    address verifier;
-    mapping(string => address payable) public ethAddressOfUser;
-    mapping(string => mapping(string => uint)) public balanceOfUser;
-    mapping(bytes32 => bool) public isUsedEmailHash;
+contract EmailWallet is Storage {
     mapping(uint => IManipulator) public manipulatorOfRuleId;
-    mapping(string => address) public erc20OfTokenName;
-    mapping(string => bool) public isRegisteredToken;
-
-    string constant ETH_NAME = "ETH";
-
+    mapping(bytes32 => bool) public isUsedEmailHash;
     address payable aggregator;
     string aggregatorToAddress;
     uint numRules;
@@ -39,7 +33,7 @@ contract EmailWallet {
         string[] memory _tokenNames,
         address[] memory _erc20Addresses,
         address _wethAddress
-    ) {
+    ) Storage() {
         aggregator = payable(msg.sender);
         aggregatorToAddress = _aggregatorToAddress;
         numRules = _manipulatorAddresses.length;
@@ -74,6 +68,11 @@ contract EmailWallet {
         require(
             weth.balanceOf(address(this)) == oldWethValue + msg.value,
             "the balance of weth is invalid"
+        );
+        console.log(
+            "msg value %s, weth balance %s",
+            msg.value,
+            weth.balanceOf(address(this))
         );
         balanceOfUser[fromAddress][ETH_NAME] += msg.value;
     }

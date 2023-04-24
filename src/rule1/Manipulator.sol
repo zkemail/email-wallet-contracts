@@ -4,24 +4,16 @@ pragma solidity ^0.8.9;
 import "./VerifierWrapper.sol";
 import "../interfaces/IManipulator.sol";
 import "../interfaces/IERC20.sol";
+import "../Storage.sol";
 
-contract Rule1Manipulator is IManipulator, Rule1VerifierWrapper {
-    mapping(string => address payable) public ethAddressOfUser;
-    mapping(string => mapping(string => uint)) public balanceOfUser;
-    mapping(bytes32 => bool) public isUsedEmailHash;
-    mapping(uint => IManipulator) public manipulatorOfRuleId;
-    mapping(string => address) public erc20OfTokenName;
-    mapping(string => bool) public isRegisteredToken;
-
-    string constant ETH_NAME = "ETH";
-
+contract Rule1Manipulator is Storage, IManipulator, Rule1VerifierWrapper {
     event EmailTransfer(
         string indexed amount,
         string indexed currency,
         string indexed recipient
     );
 
-    constructor(address _verifier) Rule1VerifierWrapper(_verifier) {}
+    constructor(address _verifier) Storage() Rule1VerifierWrapper(_verifier) {}
 
     function verifyWrap(
         bytes calldata param,
