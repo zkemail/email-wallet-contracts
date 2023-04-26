@@ -17,16 +17,22 @@ contract Rule1Test is Test {
 
     function setUp() public {
         publicKey = vm.parseBytes(vm.readFile("./test_data/gmail_pk.hex"));
+        // mainnet WETH: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+        // goerli WETH 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6
+        // arbitrum mainnet WETH: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
         wallet = new EmailWallet(
             "emailwallet.relayer@gmail.com",
             0,
             publicKey,
             new string[](0),
             new address[](0),
-            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2) //address(0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6)
+            address(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1)
         );
         verifier = new Rule1Verifier();
-        manipulator = new Rule1Manipulator(address(verifier), address(wallet));
+        manipulator = new Rule1Manipulator(
+            address(verifier),
+            payable(address(wallet))
+        );
         wallet.addManipulation(address(manipulator));
         param.headerHash = bytes32(
             0xb8d96f390d94a1700360794a5a2b2bfdb32bf85bdf84af86cc71bb6016733523
@@ -63,7 +69,9 @@ contract Rule1Test is Test {
     }
 
     function testSimpleTransfer() public {
+        startHoax(vm.addr(1));
         wallet.depositETH{value: 0.5 ether}(param.fromAddressString);
+        vm.stopPrank();
         uint initBalance = wallet.balanceOfUser(param.fromAddressString, "ETH");
         bytes memory paramBytes = abi.encode(param);
         bytes memory acc = vm.parseBytes(
@@ -81,15 +89,15 @@ contract Rule1Test is Test {
             "ETH"
         );
         assertEq(recepientBalance, transferAmount);
+        startHoax(vm.addr(1));
+        wallet.withdrawETH(param.fromAddressString, newBalance);
+        assertEq(wallet.balanceOfUser(param.fromAddressString, "ETH"), 0);
+        vm.stopPrank();
+        startHoax(vm.addr(2));
+        wallet.depositETH{value: 0.5 ether}(param.substr2String);
+        wallet.withdrawETH(param.substr2String, recepientBalance + 0.5 ether);
+        assertEq(wallet.balanceOfUser(param.substr2String, "ETH"), 0);
+        vm.stopPrank();
+        wallet.destructWallet();
     }
-
-    // function testIncrement() public {
-    //     counter.increment();
-    //     assertEq(counter.number(), 1);
-    // }
-
-    // function testSetNumber(uint256 x) public {
-    //     counter.setNumber(x);
-    //     assertEq(counter.number(), x);
-    // }
 }

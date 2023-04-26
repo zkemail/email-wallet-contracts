@@ -10,6 +10,7 @@ import "../EmailWallet.sol";
 
 // reference: https://solidity-by-example.org/defi/uniswap-v2/
 contract Rule2Manipulator is IManipulator, Rule2VerifierWrapper {
+    // L1
     address private constant UNISWAP_V3_ROUTER =
         0xE592427A0AEce92De3Edee1F18E0157C05861564;
     ISwapRouter private router = ISwapRouter(UNISWAP_V3_ROUTER);
@@ -20,7 +21,7 @@ contract Rule2Manipulator is IManipulator, Rule2VerifierWrapper {
 
     constructor(
         address _verifier,
-        address _wallet
+        address payable _wallet
     ) Rule2VerifierWrapper(_verifier) {
         wallet = EmailWallet(_wallet);
     }

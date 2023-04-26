@@ -17,7 +17,7 @@ contract Rule1Manipulator is IManipulator, Rule1VerifierWrapper {
 
     constructor(
         address _verifier,
-        address _wallet
+        address payable _wallet
     ) Rule1VerifierWrapper(_verifier) {
         wallet = EmailWallet(_wallet);
     }

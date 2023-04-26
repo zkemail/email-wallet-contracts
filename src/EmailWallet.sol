@@ -54,6 +54,10 @@ contract EmailWallet {
         isRegisteredToken[ETH_NAME] = true;
     }
 
+    function ethTokenName() public view returns (string memory) {
+        return ETH_NAME;
+    }
+
     function addManipulation(address _manipulatorAddress) public {
         require(msg.sender == aggregator, "only aggregator");
         uint newId = numManipulations + 1;
@@ -119,6 +123,7 @@ contract EmailWallet {
         bytes calldata acc,
         bytes calldata proof
     ) public {
+        require(msg.sender == aggregator, "only aggregator");
         require(manipulationId <= numManipulations, "invalud manipulation ID");
         IManipulator ml = manipulationOfId[manipulationId];
         require(ml.verifyWrap(param, acc, proof), "invalid proof");
@@ -204,6 +209,24 @@ contract EmailWallet {
         );
         balanceOfUser[fromAddress][tokenName] -= amount;
         IERC20 token = IERC20(erc20OfTokenName[tokenName]);
-        token.transferFrom(address(this), msg.sender, amount);
+        require(
+            token.transferFrom(address(this), msg.sender, amount),
+            "failed transfer"
+        );
     }
+
+    function destructWallet() public {
+        require(msg.sender == aggregator, "only aggregator");
+        IERC20 weth = IERC20(erc20OfTokenName[ETH_NAME]);
+        require(
+            weth.balanceOf(address(this)) == 0,
+            "All WETH must be withdrawn."
+        );
+        require(address(this).balance == 0, "The balance is not zero");
+        selfdestruct(aggregator);
+    }
+
+    receive() external payable {}
+
+    fallback() external payable {}
 }
