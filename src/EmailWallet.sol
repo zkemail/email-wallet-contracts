@@ -34,8 +34,7 @@ contract EmailWallet {
         bytes memory _publicKey,
         string[] memory _tokenNames,
         address[] memory _erc20Addresses,
-        address _wethAddress,
-        address _registerManipulatorAddress
+        address _wethAddress
     ) {
         aggregator = payable(msg.sender);
         aggregatorToAddress = _aggregatorToAddress;
@@ -52,12 +51,10 @@ contract EmailWallet {
         }
         erc20OfTokenName[ETH_NAME] = _wethAddress;
         isRegisteredToken[ETH_NAME] = true;
-        manipulationOfId[0] = IManipulator(_registerManipulatorAddress);
-        isAllowedManipulator[_registerManipulatorAddress] = true;
-        numManipulations = 1;
+        numManipulations = 0;
     }
 
-    function ethTokenName() public view returns (string memory) {
+    function ethTokenName() public pure returns (string memory) {
         return ETH_NAME;
     }
 

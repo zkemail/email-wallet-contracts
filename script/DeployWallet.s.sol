@@ -24,7 +24,7 @@ contract DeployScript is Script {
         tokenAddresses[0] = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
 
         vm.startBroadcast(privateKey);
-        EmailWallet wallet = new EmailWallet(
+        new EmailWallet(
             "emailwallet.relayer@gmail.com",
             0,
             publicKey,

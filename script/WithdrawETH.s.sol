@@ -3,12 +3,6 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import "../src/EmailWallet.sol";
-import "../src/rule1/Verifier.sol";
-import "../src/rule1/VerifierWrapper.sol";
-import "../src/rule1/Manipulator.sol";
-import "../src/rule2/Verifier.sol";
-import "../src/rule2/VerifierWrapper.sol";
-import "../src/rule2/Manipulator.sol";
 
 contract WithdrawETH is Script {
     function setUp() public {}
