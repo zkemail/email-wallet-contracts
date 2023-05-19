@@ -34,13 +34,13 @@ contract EmailWallet {
         bytes memory _publicKey,
         string[] memory _tokenNames,
         address[] memory _erc20Addresses,
-        address _wethAddress
+        address _wethAddress,
+        address _registerManipulatorAddress
     ) {
         aggregator = payable(msg.sender);
         aggregatorToAddress = _aggregatorToAddress;
         fixedFee = _fixedFee;
         validPublicKeyHash = keccak256(_publicKey);
-        numManipulations = 0;
         numTokens = _tokenNames.length;
         require(
             _tokenNames.length == _erc20Addresses.length,
@@ -52,6 +52,9 @@ contract EmailWallet {
         }
         erc20OfTokenName[ETH_NAME] = _wethAddress;
         isRegisteredToken[ETH_NAME] = true;
+        manipulationOfId[0] = IManipulator(_registerManipulatorAddress);
+        isAllowedManipulator[_registerManipulatorAddress] = true;
+        numManipulations = 1;
     }
 
     function ethTokenName() public view returns (string memory) {
@@ -60,7 +63,7 @@ contract EmailWallet {
 
     function addManipulation(address _manipulatorAddress) public {
         require(msg.sender == aggregator, "only aggregator");
-        uint newId = numManipulations + 1;
+        uint newId = numManipulations;
         manipulationOfId[newId] = IManipulator(_manipulatorAddress);
         isAllowedManipulator[_manipulatorAddress] = true;
         numManipulations += 1;
@@ -124,7 +127,7 @@ contract EmailWallet {
         bytes calldata proof
     ) public {
         require(msg.sender == aggregator, "only aggregator");
-        require(manipulationId <= numManipulations, "invalud manipulation ID");
+        require(manipulationId < numManipulations, "invalud manipulation ID");
         IManipulator ml = manipulationOfId[manipulationId];
         require(ml.verifyWrap(param, acc, proof), "invalid proof");
         IManipulator.RetrievedData memory data = ml.retrieveData(param);
@@ -155,20 +158,6 @@ contract EmailWallet {
         balanceOfUser[fromAddress][ETH_NAME] -= fixedFee;
         balanceOfUser[aggregatorToAddress][ETH_NAME] += fixedFee;
         ml.process(param);
-        // (bool success, bytes memory returnData) = address(ml).delegatecall(
-        //     abi.encodeWithSignature(
-        //         "process(bytes,bytes,bytes)",
-        //         param,
-        //         acc,
-        //         proof
-        //     )
-        // );
-        // if (!success) {
-        //     if (returnData.length == 0) revert();
-        //     assembly {
-        //         revert(add(32, returnData), mload(returnData))
-        //     }
-        // }
         isUsedEmailHash[headerHash] = true;
         emit EmailProcessed(fromAddress, manipulationId, headerHash);
     }
