@@ -4,14 +4,31 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./verifier/IVerifierWrapper.sol";
 import "./extension/IExtension.sol";
 import "./account/IAccount.sol";
+import "./utils/Create2.sol";
 
 contract Entry is Ownable {
+    using Create2 for *;
+
+    bytes32 public saltRandHash;
+    mapping(bytes32 => bool) public saltNullifiers;
     mapping(bytes32 => address) public addressOfSalt;
+    mapping(address => bytes) public accountBytesOfNonRegisteredUser;
     mapping(address => address) public verifierOfNonRegisteredUser;
     mapping(uint256 => mapping(address => address))
         public extensionOfNonRegisteredUser;
+    bytes public defaultAccountBytes;
     address public defaultVerifier;
     mapping(uint256 => address) public defaultExtensionOfId;
+
+    constructor(
+        bytes32 _saltRandHash,
+        bytes memory _defaultAccountBytes,
+        address _defaultVerifier
+    ) {
+        saltRandHash = _saltRandHash;
+        defaultAccountBytes = _defaultAccountBytes;
+        defaultVerifier = _defaultVerifier;
+    }
 
     function entry(
         bytes32 accountAddrSalt,
@@ -25,7 +42,46 @@ contract Entry is Ownable {
             accountAddr != address(0),
             "The sender's account is not registered."
         );
+        if (!accountAddr.isContractDeployed()) {
+            require(
+                Create2.deploy(
+                    0,
+                    accountAddrSalt,
+                    accountBytesOfNonRegisteredUser[accountAddr]
+                ) == accountAddr,
+                "deploy failed"
+            );
+        }
         IAccount account = IAccount(accountAddr);
+        IVerifierWrapper verifier = account.getVerifierWrapper();
+        require(
+            verifier.getFromAddrSalt(verifierParams) == accountAddrSalt,
+            "Invalid accountAddrSalt"
+        );
+        require(
+            verifier.getSaltRandHash(verifierParams) == saltRandHash,
+            "Invalid saltRandHash"
+        );
+        bytes32 subjectAddrSalt = verifier.getSubjectAddrSalt(verifierParams);
+        address subjectAddr = addressOfSalt[subjectAddrSalt];
+        bytes32 saltNullifier = verifier.getSaltNullifier(verifierParams);
+        if (subjectAddr == address(0)) {
+            require(!saltNullifiers[saltNullifier], "used saltNullifier");
+            saltNullifiers[saltNullifier] = true;
+            subjectAddr = subjectAddrSalt.computeAddress(
+                keccak256(defaultAccountBytes),
+                address(this)
+            );
+            addressOfSalt[subjectAddrSalt] = subjectAddr;
+            accountBytesOfNonRegisteredUser[subjectAddr] = defaultAccountBytes;
+            verifierOfNonRegisteredUser[subjectAddr] = defaultVerifier;
+        } else {
+            require(
+                saltNullifiers[saltNullifier],
+                "saltNullifier is not registered"
+            );
+        }
+
         // require(
         //     account.verifyOp(
         //         verifierParams,
@@ -37,10 +93,17 @@ contract Entry is Ownable {
         // );
         account.callExtension(
             extensionId,
+            subjectAddr,
             verifierParams,
             proof,
             extensionParams
         );
+    }
+
+    function setDefaultAccountBytes(
+        bytes calldata accountBytes
+    ) public onlyOwner {
+        defaultAccountBytes = accountBytes;
     }
 
     function setDefaultVerifier(address verifierAddress) public onlyOwner {

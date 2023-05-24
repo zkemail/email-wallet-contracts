@@ -71,4 +71,12 @@ library Create2 {
         );
         return address(uint160(uint256(_data)));
     }
+
+    function isContractDeployed(address _address) external view returns (bool) {
+        uint32 size;
+        assembly {
+            size := extcodesize(_address)
+        }
+        return (size > 0);
+    }
 }

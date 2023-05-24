@@ -9,12 +9,12 @@ interface IExtension {
         address indexed account
     );
 
-    enum CallType {
-        Call,
-        DelegateCall
-    }
+    // enum CallType {
+    //     Call,
+    //     DelegateCall
+    // }
 
-    function getCallType() external pure returns (CallType);
+    // function getCallType() external pure returns (CallType);
 
     function commandName() external pure returns (string memory);
 
@@ -23,7 +23,7 @@ interface IExtension {
     ) external returns (string memory);
 
     function execute(
-        address subjectAccountAddr,
+        address subjectAddr,
         bytes memory extensionParams
     ) external;
 }

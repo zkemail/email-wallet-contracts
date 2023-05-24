@@ -20,4 +20,12 @@ interface IVerifierWrapper {
     function getSubjectAddrSalt(
         bytes memory params
     ) external pure returns (bytes32);
+
+    function getSaltNullifier(
+        bytes memory params
+    ) external pure returns (bytes32);
+
+    function getSaltRandHash(
+        bytes memory params
+    ) external pure returns (bytes32);
 }
