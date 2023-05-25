@@ -156,8 +156,10 @@ contract Entry is IEntry, Ownable {
     ) public onlyOwner {
         if (addressOfSalt[accountAddrSalt] == address(0)) {
             IVerifierWrapper verifier = IVerifierWrapper(defaultVerifier);
-            (, bytes32 saltNullifier) = verifier.getFromSalt(verifierParams);
-            _getAccountAddrWithInit(accountAddrSalt, saltNullifier);
+            _getAccountAddrWithInit(
+                accountAddrSalt,
+                verifier.getFromSaltNullifier(verifierParams)
+            );
         }
         _entry(
             accountAddrSalt,
@@ -213,8 +215,7 @@ contract Entry is IEntry, Ownable {
         );
         IAccount account = IAccount(accountAddr);
         IVerifierWrapper verifier = account.getVerifierWrapper();
-        (, bytes32 saltNullifier) = verifier.getFromSalt(verifierParams);
-        saltNullifiers[saltNullifier] = true;
+        saltNullifiers[verifier.getFromSaltNullifier(verifierParams)] = true;
         addressOfSalt[accountAddrSalt] = accountAddr;
         accountLogicOfNonRegisteredUser[accountAddr] = oldEntry
             .getAccountLogicOfNonRegisteredUser(accountAddr);
@@ -284,12 +285,13 @@ contract Entry is IEntry, Ownable {
         }
         IAccount account = IAccount(accountAddr);
         IVerifierWrapper verifier = account.getVerifierWrapper();
-        (bytes32 fromSalt, bytes32 fromSaltNullifier) = verifier.getFromSalt(
-            verifierParams
-        );
-        require(fromSalt == accountAddrSalt, "Invalid fromSalt");
         require(
-            !isSaltNullifierCheck || saltNullifiers[fromSaltNullifier],
+            verifier.getFromSalt(verifierParams) == accountAddrSalt,
+            "Invalid fromSalt"
+        );
+        require(
+            !isSaltNullifierCheck ||
+                saltNullifiers[verifier.getFromSaltNullifier(verifierParams)],
             "Invalid fromSaltNullifier"
         );
 
@@ -302,8 +304,7 @@ contract Entry is IEntry, Ownable {
         }
 
         // 3. subjectAddr check
-        (bytes32 subjectSalt, bytes32 subjectSaltNullifier) = verifier
-            .getSubjectSalt(verifierParams);
+        bytes32 subjectSalt = verifier.getSubjectSalt(verifierParams);
         require(
             isSaltNullifierCheck || subjectSalt == bytes32(0),
             "The subjectSalt must be 0 when isSaltNullifierCheck is false"
@@ -312,18 +313,17 @@ contract Entry is IEntry, Ownable {
         if (subjectSalt != bytes32(0)) {
             subjectAddr = _getAccountAddrWithInit(
                 subjectSalt,
-                subjectSaltNullifier
+                verifier.getSubjectSaltNullifier(verifierParams)
             );
         }
 
         // 4. ccSalt == subjectSalt check
-        (bytes32 ccSalt, ) = verifier.getCcSalt(verifierParams);
         require(
-            ccSalt == subjectSalt,
+            verifier.getCcSalt(verifierParams) == subjectSalt,
             "The subject email address must be included in the cc field."
         );
 
-        // 4. call extension in the account contract
+        // 5. call extension in the account contract
         account.callExtension(
             extensionId,
             subjectAddr,

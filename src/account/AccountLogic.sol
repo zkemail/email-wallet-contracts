@@ -91,7 +91,14 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         );
         emailNullifiers[headerHash] = true;
         // 4. call extension
-        extension.execute(subjectAddr, extensionParams);
+        if (
+            extensionId == Constants.CONFIG_EXTENSION_ID ||
+            extensionId == Constants.EXT_EXTENSION_ID
+        ) {
+            delegateExtCall(address(extension), subjectAddr, extensionParams);
+        } else {
+            extension.execute(subjectAddr, extensionParams);
+        }
         // IExtension.CallType calltype = extension.getCallType();
         // if (calltype == IExtension.CallType.Call) {
         //     extension.execute(subjectAddr, extensionParams);
@@ -116,5 +123,25 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
     function changeEntry(address newEntry) external onlyEntry {
         require(newEntry != address(0), "newEntry is not zero address.");
         entry = newEntry;
+    }
+
+    function delegateExtCall(
+        address extensionAddr,
+        address subjectAddr,
+        bytes memory extensionParams
+    ) private {
+        (bool success, bytes memory returnData) = extensionAddr.delegatecall(
+            abi.encodeWithSignature(
+                "execute(address,bytes)",
+                subjectAddr,
+                extensionParams
+            )
+        );
+        if (!success) {
+            if (returnData.length == 0) revert();
+            assembly {
+                revert(add(32, returnData), mload(returnData))
+            }
+        }
     }
 }
