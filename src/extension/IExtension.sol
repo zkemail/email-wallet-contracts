@@ -4,7 +4,7 @@ import "../verifier/IVerifierWrapper.sol";
 
 interface IExtension {
     event Executed(
-        uint indexed extensionId,
+        string indexed command,
         string indexed msg,
         address indexed account
     );
@@ -20,10 +20,20 @@ interface IExtension {
 
     function buildSubject(
         bytes memory extensionParams
-    ) external returns (string memory);
+    ) external pure returns (string memory);
 
     function execute(
         address subjectAddr,
         bytes memory extensionParams
     ) external;
+
+    // function install(
+    //     address subjectAddr,
+    //     bytes memory extensionParams
+    // ) external;
+
+    // function unInstall(
+    //     address subjectAddr,
+    //     bytes memory extensionParams
+    // ) external;
 }
