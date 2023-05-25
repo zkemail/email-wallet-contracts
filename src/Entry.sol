@@ -5,6 +5,7 @@ import "./verifier/IVerifierWrapper.sol";
 import "./extension/IExtension.sol";
 import "./account/IAccount.sol";
 import "./utils/Create2.sol";
+import "./utils/Constants.sol";
 
 contract Entry is Ownable {
     using Create2 for *;
@@ -23,11 +24,21 @@ contract Entry is Ownable {
     constructor(
         bytes32 _saltRandHash,
         bytes memory _defaultAccountBytes,
-        address _defaultVerifier
+        address _defaultVerifier,
+        address _defaultWalletExtension,
+        address _defaultExtExtension,
+        address _defaultTranspoteExtension
     ) {
         saltRandHash = _saltRandHash;
         defaultAccountBytes = _defaultAccountBytes;
         defaultVerifier = _defaultVerifier;
+        defaultExtensionOfId[
+            Constants.WALLET_EXTENSION_ID
+        ] = _defaultWalletExtension;
+        defaultExtensionOfId[Constants.EXT_EXTENSION_ID] = _defaultExtExtension;
+        defaultExtensionOfId[
+            Constants.TRANSPORT_EXTENSION_ID
+        ] = _defaultTranspoteExtension;
     }
 
     function entry(
@@ -37,6 +48,7 @@ contract Entry is Ownable {
         bytes memory proof,
         bytes memory extensionParams
     ) public onlyOwner {
+        // 1. from address check
         address accountAddr = addressOfSalt[accountAddrSalt];
         require(
             accountAddr != address(0),
@@ -49,8 +61,9 @@ contract Entry is Ownable {
                     accountAddrSalt,
                     accountBytesOfNonRegisteredUser[accountAddr]
                 ) == accountAddr,
-                "deploy failed"
+                "deploy failed 1"
             );
+            require(accountAddr.isContractDeployed(), "deploy failed 2");
         }
         IAccount account = IAccount(accountAddr);
         IVerifierWrapper verifier = account.getVerifierWrapper();
@@ -58,10 +71,14 @@ contract Entry is Ownable {
             verifier.getFromAddrSalt(verifierParams) == accountAddrSalt,
             "Invalid accountAddrSalt"
         );
+
+        // 2. saltRandHash check
         require(
             verifier.getSaltRandHash(verifierParams) == saltRandHash,
             "Invalid saltRandHash"
         );
+
+        // 3. subjectAddr check
         bytes32 subjectAddrSalt = verifier.getSubjectAddrSalt(verifierParams);
         address subjectAddr = addressOfSalt[subjectAddrSalt];
         bytes32 saltNullifier = verifier.getSaltNullifier(verifierParams);
@@ -75,6 +92,15 @@ contract Entry is Ownable {
             addressOfSalt[subjectAddrSalt] = subjectAddr;
             accountBytesOfNonRegisteredUser[subjectAddr] = defaultAccountBytes;
             verifierOfNonRegisteredUser[subjectAddr] = defaultVerifier;
+            extensionOfNonRegisteredUser[Constants.WALLET_EXTENSION_ID][
+                subjectAddr
+            ] = defaultExtensionOfId[Constants.WALLET_EXTENSION_ID];
+            extensionOfNonRegisteredUser[Constants.EXT_EXTENSION_ID][
+                subjectAddr
+            ] = defaultExtensionOfId[Constants.EXT_EXTENSION_ID];
+            extensionOfNonRegisteredUser[Constants.TRANSPORT_EXTENSION_ID][
+                subjectAddr
+            ] = defaultExtensionOfId[Constants.TRANSPORT_EXTENSION_ID];
         } else {
             require(
                 saltNullifiers[saltNullifier],
@@ -91,6 +117,7 @@ contract Entry is Ownable {
         //     ),
         //     "invalid operation"
         // );
+        // 4. call extension in the account contract
         account.callExtension(
             extensionId,
             subjectAddr,

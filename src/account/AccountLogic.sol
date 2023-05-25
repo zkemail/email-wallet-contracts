@@ -7,14 +7,22 @@ import "./AccountProxy.sol";
 import "./IAccount.sol";
 import "../verifier/IVerifierWrapper.sol";
 import "../extension/IExtension.sol";
-import "../Entry.sol";
 import "../utils/Create2.sol";
+import "../utils/Constants.sol";
 
 contract AccountLogic is IAccount, AccountStorage, Ownable, Initializable {
     using Create2 for bytes32;
 
-    function initialize(address _verifier) public initializer {
+    function initialize(
+        address _verifier,
+        address _walletExtension,
+        address _extensionsExtension,
+        address _transportExtension
+    ) public initializer {
         verifier = _verifier;
+        extensionOfId[Constants.WALLET_EXTENSION_ID] = _walletExtension;
+        extensionOfId[Constants.EXT_EXTENSION_ID] = _extensionsExtension;
+        extensionOfId[Constants.TRANSPORT_EXTENSION_ID] = _transportExtension;
     }
 
     function getVerifierWrapper() public view returns (IVerifierWrapper) {
@@ -38,13 +46,16 @@ contract AccountLogic is IAccount, AccountStorage, Ownable, Initializable {
         bytes memory extensionParams
     ) external onlyOwner {
         IVerifierWrapper verifierWrapper = getVerifierWrapper();
+        // 1. email proof verification
         require(
             verifierWrapper.verifyWrap(verifierParams, proof),
             "Invalid proof"
         );
+        // 2. nullifier check
         bytes32 headerHash = verifierWrapper.getHeaderHash(verifierParams);
         require(!emailNullifiers[headerHash], "already used email");
         IExtension extension = getExtension(extensionId);
+        // 3. subject check
         string memory subjectExpected = string.concat(
             SUBJECT_PREFIX,
             extension.commandName(),
@@ -57,6 +68,7 @@ contract AccountLogic is IAccount, AccountStorage, Ownable, Initializable {
             "The subject is not equal to the expected one."
         );
         emailNullifiers[headerHash] = true;
+        // 4. call extension
         extension.execute(subjectAddr, extensionParams);
         // IExtension.CallType calltype = extension.getCallType();
         // if (calltype == IExtension.CallType.Call) {

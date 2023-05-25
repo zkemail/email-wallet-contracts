@@ -3,8 +3,16 @@ pragma solidity ^0.8.9;
 
 import "../verifier/IVerifierWrapper.sol";
 import "../extension/IExtension.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-interface IAccount {
+interface IAccount is Initializable {
+    function initialize(
+        address _verifier,
+        address _walletExtension,
+        address _extensionsExtension,
+        address _transportExtension
+    ) public initializer;
+
     function getVerifierWrapper() external view returns (IVerifierWrapper);
 
     function getExtension(uint extensionId) external view returns (IExtension);
