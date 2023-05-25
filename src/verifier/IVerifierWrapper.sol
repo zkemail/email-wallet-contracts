@@ -9,21 +9,21 @@ interface IVerifierWrapper {
 
     function getHeaderHash(bytes memory params) external pure returns (bytes32);
 
-    function getFromAddrSalt(
+    function getFromSalt(
         bytes memory params
-    ) external pure returns (bytes32);
+    ) external pure returns (bytes32, bytes32);
 
     function getSubjectStr(
         bytes memory params
     ) external pure returns (string memory);
 
-    function getSubjectAddrSalt(
+    function getSubjectSalt(
         bytes memory params
-    ) external pure returns (bytes32);
+    ) external pure returns (bytes32, bytes32);
 
-    function getSaltNullifier(
+    function getCcSalt(
         bytes memory params
-    ) external pure returns (bytes32);
+    ) external pure returns (bytes32, bytes32);
 
     function getSaltRandHash(
         bytes memory params

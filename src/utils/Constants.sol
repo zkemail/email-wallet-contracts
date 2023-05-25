@@ -14,6 +14,7 @@ pragma solidity ^0.8.0;
  */
 library Constants {
     uint256 public constant WALLET_EXTENSION_ID = 0;
-    uint256 public constant EXT_EXTENSION_ID = 1;
-    uint256 public constant TRANSPORT_EXTENSION_ID = 2;
+    uint256 public constant CONFIG_EXTENSION_ID = 1;
+    uint256 public constant EXT_EXTENSION_ID = 2;
+    uint256 public constant TRANSPORT_EXTENSION_ID = 3;
 }

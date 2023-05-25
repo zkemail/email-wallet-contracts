@@ -10,19 +10,41 @@ import "../extension/IExtension.sol";
 import "../utils/Create2.sol";
 import "../utils/Constants.sol";
 
-contract AccountLogic is IAccount, AccountStorage, Ownable, Initializable {
+contract AccountLogic is IAccount, AccountStorage, Initializable {
     using Create2 for bytes32;
+
+    modifier onlyEntry() {
+        require(
+            msg.sender == entry,
+            "Only the entry contract can call this function."
+        );
+        _;
+    }
 
     function initialize(
         address _verifier,
-        address _walletExtension,
-        address _extensionsExtension,
-        address _transportExtension
+        uint256[] calldata _initExtensionIds,
+        address[] calldata _initExtensionAddrs
     ) public initializer {
+        require(_verifier != address(0), "_verifier must not be zero address.");
+        require(
+            _initExtensionIds.length == _initExtensionAddrs.length,
+            "Not equal lengthes"
+        );
+        for (uint idx = 0; idx < _initExtensionIds.length; idx++) {
+            uint256 extensionId = _initExtensionIds[idx];
+            address addr = _initExtensionAddrs[idx];
+            require(addr != address(0), "addr must not be zero address.");
+            extensionOfId[extensionId] = addr;
+        }
+        // An entry contract owns the deployer contract (=msg.sender).
+        Ownable deployer = Ownable(msg.sender);
+        entry = deployer.owner();
         verifier = _verifier;
-        extensionOfId[Constants.WALLET_EXTENSION_ID] = _walletExtension;
-        extensionOfId[Constants.EXT_EXTENSION_ID] = _extensionsExtension;
-        extensionOfId[Constants.TRANSPORT_EXTENSION_ID] = _transportExtension;
+    }
+
+    function getEntryAddr() external view returns (address) {
+        return entry;
     }
 
     function getVerifierWrapper() public view returns (IVerifierWrapper) {
@@ -44,7 +66,7 @@ contract AccountLogic is IAccount, AccountStorage, Ownable, Initializable {
         bytes memory verifierParams,
         bytes memory proof,
         bytes memory extensionParams
-    ) external onlyOwner {
+    ) external onlyEntry {
         IVerifierWrapper verifierWrapper = getVerifierWrapper();
         // 1. email proof verification
         require(
@@ -89,5 +111,10 @@ contract AccountLogic is IAccount, AccountStorage, Ownable, Initializable {
         //         }
         //     }
         // }
+    }
+
+    function changeEntry(address newEntry) external onlyEntry {
+        require(newEntry != address(0), "newEntry is not zero address.");
+        entry = newEntry;
     }
 }

@@ -5,13 +5,14 @@ import "../verifier/IVerifierWrapper.sol";
 import "../extension/IExtension.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-interface IAccount is Initializable {
+interface IAccount {
     function initialize(
         address _verifier,
-        address _walletExtension,
-        address _extensionsExtension,
-        address _transportExtension
-    ) public initializer;
+        uint256[] calldata _initExtensionIds,
+        address[] calldata _initExtensionAddrs
+    ) external;
+
+    function getEntryAddr() external view returns (address);
 
     function getVerifierWrapper() external view returns (IVerifierWrapper);
 
@@ -24,4 +25,6 @@ interface IAccount is Initializable {
         bytes memory proof,
         bytes memory extensionParams
     ) external;
+
+    function changeEntry(address newEntry) external;
 }
