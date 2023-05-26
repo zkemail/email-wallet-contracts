@@ -26,5 +26,15 @@ interface IAccount {
         bytes memory extensionParams
     ) external;
 
+    function callOtherExtension(
+        uint extensionId,
+        address subjectAddr,
+        bytes memory extensionParams
+    ) external;
+
+    function updateExtension(uint extensionId, address extensionAddr) external;
+
+    function changeVerifier(address newVerifier) external;
+
     function changeEntry(address newEntry) external;
 }

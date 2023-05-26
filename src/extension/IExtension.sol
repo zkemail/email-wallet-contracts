@@ -9,14 +9,28 @@ interface IExtension {
         address indexed account
     );
 
-    // enum CallType {
-    //     Call,
-    //     DelegateCall
-    // }
-
-    // function getCallType() external pure returns (CallType);
+    struct DecomposedRegex {
+        bool isPublic;
+        string typeName;
+        string regexDefOfString;
+    }
 
     function commandName() external pure returns (string memory);
+
+    function queryDecomposedRegexes()
+        external
+        pure
+        returns (DecomposedRegex[] memory);
+
+    function executeDecomposedRegexes()
+        external
+        pure
+        returns (DecomposedRegex[] memory);
+
+    function query(
+        address accountAddr,
+        bytes memory queryData
+    ) external view returns (string memory);
 
     function buildSubject(
         bytes memory extensionParams

@@ -148,19 +148,21 @@ contract Entry is IEntry, Ownable {
         );
     }
 
-    function deposit(
+    function depositFirst(
         bytes32 accountAddrSalt,
         bytes memory verifierParams,
         bytes memory proof,
         bytes memory extensionParams
     ) public onlyOwner {
-        if (addressOfSalt[accountAddrSalt] == address(0)) {
-            IVerifierWrapper verifier = IVerifierWrapper(defaultVerifier);
-            _getAccountAddrWithInit(
-                accountAddrSalt,
-                verifier.getFromSaltNullifier(verifierParams)
-            );
-        }
+        require(
+            addressOfSalt[accountAddrSalt] == address(0),
+            "Not first deposit"
+        );
+        IVerifierWrapper verifier = IVerifierWrapper(defaultVerifier);
+        _getAccountAddrWithInit(
+            accountAddrSalt,
+            verifier.getFromSaltNullifier(verifierParams)
+        );
         _entry(
             accountAddrSalt,
             Constants.WALLET_EXTENSION_ID,

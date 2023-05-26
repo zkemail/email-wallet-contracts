@@ -21,6 +21,14 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         _;
     }
 
+    modifier onlyAllowedExt() {
+        require(
+            allowedExtensions[msg.sender],
+            "Only the allowed extension contract can call this function."
+        );
+        _;
+    }
+
     function initialize(
         address _verifier,
         uint256[] calldata _initExtensionIds,
@@ -32,10 +40,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             "Not equal lengthes"
         );
         for (uint idx = 0; idx < _initExtensionIds.length; idx++) {
-            uint256 extensionId = _initExtensionIds[idx];
-            address addr = _initExtensionAddrs[idx];
-            require(addr != address(0), "addr must not be zero address.");
-            extensionOfId[extensionId] = addr;
+            updateExtension(_initExtensionIds[idx], _initExtensionAddrs[idx]);
         }
         // An entry contract owns the deployer contract (=msg.sender).
         Ownable deployer = Ownable(msg.sender);
@@ -81,7 +86,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         string memory subjectExpected = string.concat(
             SUBJECT_PREFIX,
             extension.commandName(),
-            " ",
+            ": ",
             extension.buildSubject(extensionParams)
         );
         require(
@@ -92,10 +97,11 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         emailNullifiers[headerHash] = true;
         // 4. call extension
         if (
+            extensionId == Constants.WALLET_EXTENSION_ID ||
             extensionId == Constants.CONFIG_EXTENSION_ID ||
             extensionId == Constants.EXT_EXTENSION_ID
         ) {
-            delegateExtCall(address(extension), subjectAddr, extensionParams);
+            _delegateExtCall(address(extension), subjectAddr, extensionParams);
         } else {
             extension.execute(subjectAddr, extensionParams);
         }
@@ -120,12 +126,54 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         // }
     }
 
+    function callOtherExtension(
+        uint extensionId,
+        address subjectAddr,
+        bytes memory extensionParams
+    ) public onlyAllowedExt {
+        address otherExtAddr = extensionOfId[extensionId];
+        require(
+            otherExtAddr != address(0),
+            "extensionId is not registered one."
+        );
+        if (
+            extensionId == Constants.WALLET_EXTENSION_ID ||
+            extensionId == Constants.CONFIG_EXTENSION_ID ||
+            extensionId == Constants.EXT_EXTENSION_ID
+        ) {
+            _delegateExtCall(otherExtAddr, subjectAddr, extensionParams);
+        } else {
+            IExtension otherExt = IExtension(otherExtAddr);
+            otherExt.execute(subjectAddr, extensionParams);
+        }
+    }
+
+    function updateExtension(uint extensionId, address extensionAddr) public {
+        require(
+            extensionAddr != address(0),
+            "extensionAddr must not be zero address."
+        );
+        address oldExtensionAddr = extensionOfId[extensionId];
+        allowedExtensions[oldExtensionAddr] = false;
+        extensionOfId[extensionId] = extensionAddr;
+        allowedExtensions[extensionAddr] = true;
+    }
+
+    function changeVerifier(address newVerifier) external {
+        require(
+            msg.sender == address(this),
+            "Only myself can call this function."
+        );
+        require(newVerifier != address(0), "newVerifier is not zero address.");
+        verifier = newVerifier;
+    }
+
     function changeEntry(address newEntry) external onlyEntry {
         require(newEntry != address(0), "newEntry is not zero address.");
         entry = newEntry;
     }
 
-    function delegateExtCall(
+    function _delegateExtCall(
         address extensionAddr,
         address subjectAddr,
         bytes memory extensionParams

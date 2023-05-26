@@ -45,7 +45,7 @@ interface IEntry {
         bytes memory extensionParams
     ) external;
 
-    function deposit(
+    function depositFirst(
         bytes32 accountAddrSalt,
         bytes memory verifierParams,
         bytes memory proof,

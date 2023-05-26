@@ -6,5 +6,6 @@ contract AccountStorage {
     address public entry;
     address public verifier;
     mapping(uint256 => address) public extensionOfId;
+    mapping(address => bool) public allowedExtensions;
     mapping(bytes32 => bool) public emailNullifiers;
 }
