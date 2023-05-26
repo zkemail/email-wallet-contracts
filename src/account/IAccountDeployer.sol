@@ -18,7 +18,7 @@ interface IAccountDeployer {
         address logic
     ) external returns (address);
 
-    function upgradeLogic(address accountAddr, address newLogic) external;
+    function upgradeLogic(address newLogic) external;
 
     function changeAdmin(address accountAddr, address newAdmin) external;
 }

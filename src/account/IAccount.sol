@@ -26,8 +26,8 @@ interface IAccount {
         bytes memory extensionParams
     ) external;
 
-    function callOtherExtension(
-        uint extensionId,
+    function forwardCall(
+        uint calleeExtensionId,
         address subjectAddr,
         bytes memory extensionParams
     ) external;

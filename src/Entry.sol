@@ -107,29 +107,29 @@ contract Entry is IEntry, Ownable {
         defaultExtensionOfId[extensionId] = extensionAddress;
     }
 
-    function upgradeAccountLogic(address newLogic) public {
-        require(newLogic != address(0), "newLogic must not be zero.");
-        accountDeployer.upgradeLogic(msg.sender, newLogic);
-    }
+    // function upgradeAccountLogic(address newLogic) public {
+    //     require(newLogic != address(0), "newLogic must not be zero.");
+    //     accountDeployer.upgradeLogic(msg.sender, newLogic);
+    // }
 
-    function changeEntryOfAccount(
-        address accountAddr,
-        address newEntryAddr
-    ) public {
-        require(accountAddr != address(0), "accountAddr must not be zero.");
-        require(newEntryAddr != address(0), "newEntryAddr must not be zero.");
-        IAccount account = IAccount(accountAddr);
-        IExtension transportExt = account.getExtension(
-            Constants.TRANSPORT_EXTENSION_ID
-        );
-        require(msg.sender == address(transportExt), "Invalid msg sender");
-        account.changeEntry(newEntryAddr);
-        IEntry newEntry = IEntry(newEntryAddr);
-        accountDeployer.changeAdmin(
-            accountAddr,
-            address(newEntry.getAccountDeployer())
-        );
-    }
+    // function changeEntryOfAccount(
+    //     address accountAddr,
+    //     address newEntryAddr
+    // ) public {
+    //     require(accountAddr != address(0), "accountAddr must not be zero.");
+    //     require(newEntryAddr != address(0), "newEntryAddr must not be zero.");
+    //     IAccount account = IAccount(accountAddr);
+    //     IExtension transportExt = account.getExtension(
+    //         Constants.TRANSPORT_EXTENSION_ID
+    //     );
+    //     require(msg.sender == address(transportExt), "Invalid msg sender");
+    //     account.changeEntry(newEntryAddr);
+    //     IEntry newEntry = IEntry(newEntryAddr);
+    //     accountDeployer.changeAdmin(
+    //         accountAddr,
+    //         address(newEntry.getAccountDeployer())
+    //     );
+    // }
 
     function entry(
         bytes32 accountAddrSalt,

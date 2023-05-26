@@ -184,7 +184,7 @@ contract Config is IExtension {
             address accountLogic = configRepository
                 .accountLogicManager()
                 .getContract(dev, params.versionName.toString());
-            entry.upgradeAccountLogic(accountLogic);
+            entry.getAccountDeployer().upgradeLogic(accountLogic);
         } else if (contractNameHash == VERIFIER_NAME_HASH) {
             address verifier = configRepository.verifierManager().getContract(
                 dev,

@@ -41,12 +41,9 @@ contract AccountDeployer is IAccountDeployer, ProxyAdmin {
         return addr;
     }
 
-    function upgradeLogic(
-        address accountAddr,
-        address newLogic
-    ) external onlyOwner {
-        require(ownedAccounts[accountAddr], "Not owned account");
-        upgrade(ITransparentUpgradeableProxy(accountAddr), newLogic);
+    function upgradeLogic(address newLogic) external {
+        require(ownedAccounts[msg.sender], "Not owned account");
+        upgrade(ITransparentUpgradeableProxy(msg.sender), newLogic);
     }
 
     function changeAdmin(

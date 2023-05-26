@@ -21,10 +21,10 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         _;
     }
 
-    modifier onlyAllowedExt() {
+    modifier onlySelf() {
         require(
-            allowedExtensions[msg.sender],
-            "Only the allowed extension contract can call this function."
+            msg.sender == address(this),
+            "Only myself can call this function."
         );
         _;
     }
@@ -126,49 +126,53 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         // }
     }
 
-    function callOtherExtension(
-        uint extensionId,
+    function forwardCall(
+        uint calleeExtensionId,
         address subjectAddr,
         bytes memory extensionParams
-    ) public onlyAllowedExt {
-        address otherExtAddr = extensionOfId[extensionId];
+    ) public {
+        uint256 callerExtensionId = extensionIdOfAddr[msg.sender];
         require(
-            otherExtAddr != address(0),
-            "extensionId is not registered one."
+            callerExtensionId != 0,
+            "The id 0 extension cannot forward a call."
         );
+        require(
+            forwardPermissions[callerExtensionId][calleeExtensionId],
+            "Not permitted forward"
+        );
+        address calleeAddr = extensionOfId[calleeExtensionId];
+        require(calleeAddr != address(0), "Not registered calleeExtensionId");
         if (
-            extensionId == Constants.WALLET_EXTENSION_ID ||
-            extensionId == Constants.CONFIG_EXTENSION_ID ||
-            extensionId == Constants.EXT_EXTENSION_ID
+            calleeExtensionId == Constants.WALLET_EXTENSION_ID ||
+            calleeExtensionId == Constants.CONFIG_EXTENSION_ID ||
+            calleeExtensionId == Constants.EXT_EXTENSION_ID ||
+            calleeExtensionId == Constants.TRANSPORT_EXTENSION_ID
         ) {
-            _delegateExtCall(otherExtAddr, subjectAddr, extensionParams);
+            _delegateExtCall(calleeAddr, subjectAddr, extensionParams);
         } else {
-            IExtension otherExt = IExtension(otherExtAddr);
-            otherExt.execute(subjectAddr, extensionParams);
+            IExtension callee = IExtension(calleeAddr);
+            callee.execute(subjectAddr, extensionParams);
         }
     }
 
-    function updateExtension(uint extensionId, address extensionAddr) public {
+    function updateExtension(
+        uint extensionId,
+        address extensionAddr
+    ) public onlySelf {
         require(
             extensionAddr != address(0),
-            "extensionAddr must not be zero address."
+            "extensionAddr is not zero address."
         );
-        address oldExtensionAddr = extensionOfId[extensionId];
-        allowedExtensions[oldExtensionAddr] = false;
         extensionOfId[extensionId] = extensionAddr;
-        allowedExtensions[extensionAddr] = true;
+        extensionIdOfAddr[extensionAddr] = extensionId;
     }
 
-    function changeVerifier(address newVerifier) external {
-        require(
-            msg.sender == address(this),
-            "Only myself can call this function."
-        );
+    function changeVerifier(address newVerifier) external onlySelf {
         require(newVerifier != address(0), "newVerifier is not zero address.");
         verifier = newVerifier;
     }
 
-    function changeEntry(address newEntry) external onlyEntry {
+    function changeEntry(address newEntry) external onlySelf {
         require(newEntry != address(0), "newEntry is not zero address.");
         entry = newEntry;
     }

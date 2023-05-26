@@ -30,13 +30,6 @@ interface IEntry {
         address extensionAddress
     ) external;
 
-    function upgradeAccountLogic(address newLogic) external;
-
-    function changeEntryOfAccount(
-        address accountAddr,
-        address newEntryAddr
-    ) external;
-
     function entry(
         bytes32 accountAddrSalt,
         uint extensionId,
