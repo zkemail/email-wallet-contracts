@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 import "../VersionManager.sol";
 import "../DevManager.sol";
 
-contract ConfigManager {
+contract ConfigRepository {
     DevManager public devManager;
     VersionManager public accountLogicManager;
     VersionManager public verifierManager;
