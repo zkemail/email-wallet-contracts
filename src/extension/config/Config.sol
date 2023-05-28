@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "solidity-stringutils/src/strings.sol";
 import "../IExtension.sol";
 import "../ExtensionHelper.sol";
 import "./ConfigRegistry.sol";
@@ -13,6 +14,7 @@ import "../../utils/Constants.sol";
 
 contract Config is IExtension {
     using ExtensionHelper for *;
+    using strings for *;
     struct ExecuteParams {
         ExtensionHelper.StringType contractName;
         ExtensionHelper.StringType versionName;
@@ -91,7 +93,7 @@ contract Config is IExtension {
             )
         );
         regexes[4] = DecomposedRegex(
-            false,
+            true,
             ExtensionHelper.STRING_TYPE_NAME,
             string.concat(
                 "(",
@@ -185,9 +187,12 @@ contract Config is IExtension {
             bytes(params.contractName.toString())
         );
         // This contract is delegate-called from the account contract.
-        string memory devName = params.devName.toString().beyond(
-            DEV_NAME_PREFIX.toSlice()
-        );
+        string memory devName = params
+            .devName
+            .toString()
+            .toSlice()
+            .beyond(DEV_NAME_PREFIX.toSlice())
+            .toString();
         IAccount account = IAccount(address(this));
         if (contractNameHash == ACCOUNT_NAME_HASH) {
             if (bytes(devName).length == 0) {

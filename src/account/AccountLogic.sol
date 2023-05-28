@@ -198,6 +198,16 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         entry = newEntry;
     }
 
+    function addPermission(uint256 fromId, uint256 toId) external onlySelf {
+        require(!forwardPermissions[fromId][toId], "Already permitted");
+        forwardPermissions[fromId][toId] = true;
+    }
+
+    function removePermission(uint256 fromId, uint256 toId) external onlySelf {
+        require(forwardPermissions[fromId][toId], "Not permitted");
+        forwardPermissions[fromId][toId] = false;
+    }
+
     function _delegateExtCall(
         address extensionAddr,
         IExtension.CallContext memory callCtx,

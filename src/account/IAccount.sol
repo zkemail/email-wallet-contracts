@@ -45,4 +45,8 @@ interface IAccount {
     function changeExtension(uint extensionId, address extensionAddr) external;
 
     function changeEntry(address newEntry) external;
+
+    function addPermission(uint256 fromId, uint256 toId) external;
+
+    function removePermission(uint256 fromId, uint256 toId) external;
 }

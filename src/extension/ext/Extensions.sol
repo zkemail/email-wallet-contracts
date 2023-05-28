@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "solidity-stringutils/src/strings.sol";
 import "../IExtension.sol";
 import "../ExtensionHelper.sol";
 import "./ExtensionRegistry.sol";
@@ -13,6 +14,7 @@ import "../../utils/Constants.sol";
 
 contract Config is IExtension {
     using ExtensionHelper for *;
+    using strings for *;
     struct ExecuteParams {
         ExtensionHelper.StringType opType;
         ExtensionHelper.StringType extensionName;
@@ -97,7 +99,7 @@ contract Config is IExtension {
             )
         );
         regexes[3] = DecomposedRegex(
-            false,
+            true,
             ExtensionHelper.STRING_TYPE_NAME,
             string.concat(
                 VER_NAME_PREFIX,
@@ -113,7 +115,7 @@ contract Config is IExtension {
             )
         );
         regexes[4] = DecomposedRegex(
-            false,
+            true,
             ExtensionHelper.STRING_TYPE_NAME,
             string.concat(
                 "(",
@@ -210,11 +212,18 @@ contract Config is IExtension {
         require(managerAddr != address(0), "The extension does not exist.");
         bytes32 opTypeHash = keccak256(bytes(params.opType.toString()));
         // This contract is delegate-called from the account contract.
-        string memory version = params.versionName.toString()[bytes(
-            VER_NAME_PREFIX
-        ).length:];
-        string memory devName = params.devName.toString()[bytes(DEV_NAME_PREFIX)
-            .length:];
+        string memory version = params
+            .versionName
+            .toString()
+            .toSlice()
+            .beyond(VER_NAME_PREFIX.toSlice())
+            .toString();
+        string memory devName = params
+            .devName
+            .toString()
+            .toSlice()
+            .beyond(DEV_NAME_PREFIX.toSlice())
+            .toString();
         IAccount account = IAccount(address(this));
         if (opTypeHash == OP_INSTALL_HASH) {
             require(
@@ -235,12 +244,29 @@ contract Config is IExtension {
                 version
             );
             account.changeExtension(extensionId, extensionAddr);
+            uint[] memory permissionRequests = IExtension(extensionAddr)
+                .permissionRequests();
+            for (uint idx = 0; idx < permissionRequests.length; idx++) {
+                account.addPermission(extensionId, permissionRequests[idx]);
+            }
         } else if (opTypeHash == OP_UNINSTALL_HASH) {
             require(
                 bytes(version).length == 0 && bytes(devName).length == 0,
                 "version and devName must be omitted when opType==uninstall."
             );
             account.changeExtension(extensionId, address(0));
+            address dev = extRegistry.devManager().getAddress(
+                extRegistry.getCurrentDev(address(this), extensionId)
+            );
+            address extensionAddr = VersionManager(managerAddr).getContract(
+                dev,
+                version
+            );
+            uint[] memory permissionRequests = IExtension(extensionAddr)
+                .permissionRequests();
+            for (uint idx = 0; idx < permissionRequests.length; idx++) {
+                account.removePermission(extensionId, permissionRequests[idx]);
+            }
         } else {
             require(false, "Not supported operation.");
         }
