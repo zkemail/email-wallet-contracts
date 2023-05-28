@@ -3,14 +3,14 @@ pragma solidity ^0.8.9;
 
 import "../verifier/IVerifierWrapper.sol";
 import "../extension/IExtension.sol";
-import "./IAccountDeployer.sol";
+import "./IAccountFactory.sol";
 import "./AccountProxy.sol";
 import "./IAccount.sol";
 import "../utils/Create2.sol";
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-contract AccountDeployer is IAccountDeployer, ProxyAdmin {
+contract AccountFactory is IAccountFactory, ProxyAdmin {
     using Create2 for *;
     mapping(address => bool) public ownedAccounts;
 

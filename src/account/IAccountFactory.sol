@@ -5,7 +5,7 @@ import "../verifier/IVerifierWrapper.sol";
 import "../extension/IExtension.sol";
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-interface IAccountDeployer {
+interface IAccountFactory {
     function isOwnedAccount(address _address) external view returns (bool);
 
     function computeAccountAddress(

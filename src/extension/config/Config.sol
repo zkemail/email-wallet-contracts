@@ -7,7 +7,7 @@ import "../ExtensionHelper.sol";
 import "./ConfigRepository.sol";
 import "../VersionManager.sol";
 import "../../account/IAccount.sol";
-import "../../account/IAccountDeployer.sol";
+import "../../account/IAccountFactory.sol";
 import "../../IEntry.sol";
 import "../../utils/Constants.sol";
 
@@ -129,11 +129,9 @@ contract Config is IExtension {
         string memory version;
         if (contractNameHash == ACCOUNT_NAME_HASH) {
             IEntry entry = IEntry(account.getEntryAddr());
-            ProxyAdmin deployer = ProxyAdmin(
-                address(entry.getAccountDeployer())
-            );
+            ProxyAdmin factory = ProxyAdmin(address(entry.getAccountFactory()));
             version = configRepository.accountLogicManager().getVersion(
-                deployer.getProxyImplementation(
+                factory.getProxyImplementation(
                     ITransparentUpgradeableProxy(address(this))
                 )
             );
@@ -199,7 +197,7 @@ contract Config is IExtension {
             address accountLogic = configRepository
                 .accountLogicManager()
                 .getContract(dev, params.versionName.toString());
-            entry.getAccountDeployer().upgradeLogic(accountLogic);
+            entry.getAccountFactory().upgradeLogic(accountLogic);
         } else if (contractNameHash == VERIFIER_NAME_HASH) {
             address verifier = configRepository.verifierManager().getContract(
                 dev,

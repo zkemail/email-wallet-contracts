@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./verifier/IVerifierWrapper.sol";
 import "./extension/IExtension.sol";
 import "./account/IAccount.sol";
-import "./account/IAccountDeployer.sol";
+import "./account/IAccountFactory.sol";
 import "./utils/Create2.sol";
 import "./utils/Constants.sol";
 import "./IEntry.sol";
@@ -23,7 +23,7 @@ contract Entry is IEntry, Ownable {
     address public defaultAccountLogic;
     address public defaultVerifier;
     mapping(uint256 => address) public defaultExtensionOfId;
-    IAccountDeployer public accountDeployer;
+    IAccountFactory public accountFactory;
     bytes32 public pubKeyCommit;
 
     constructor(
@@ -34,7 +34,7 @@ contract Entry is IEntry, Ownable {
         address _defaultConfigExtension,
         address _defaultExtExtension,
         address _defaultTranspoteExtension,
-        bytes memory _accountDeployerCode,
+        bytes memory _accountFactoryCode,
         bytes32 _pubKeyCommit
     ) {
         saltRandHash = _saltRandHash;
@@ -50,16 +50,16 @@ contract Entry is IEntry, Ownable {
         defaultExtensionOfId[
             Constants.TRANSPORT_EXTENSION_ID
         ] = _defaultTranspoteExtension;
-        address accountDeployerAddr = Create2.deploy(
+        address accountFactoryAddr = Create2.deploy(
             0,
             bytes32(bytes20(address(this))),
-            abi.encodePacked(_accountDeployerCode)
+            abi.encodePacked(_accountFactoryCode)
         );
         require(
-            accountDeployerAddr != address(0),
-            "accountDeployer deploy failed"
+            accountFactoryAddr != address(0),
+            "accountFactory deploy failed"
         );
-        accountDeployer = IAccountDeployer(accountDeployerAddr);
+        accountFactory = IAccountFactory(accountFactoryAddr);
         pubKeyCommit = _pubKeyCommit;
     }
 
@@ -67,8 +67,8 @@ contract Entry is IEntry, Ownable {
         return addressOfSalt[salt];
     }
 
-    function getAccountDeployer() public view returns (IAccountDeployer) {
-        return accountDeployer;
+    function getAccountFactory() public view returns (IAccountFactory) {
+        return accountFactory;
     }
 
     function getAccountLogicOfNonRegisteredUser(
@@ -241,7 +241,7 @@ contract Entry is IEntry, Ownable {
         );
         address accountAddr = addressOfSalt[accountAddrSalt];
         if (!accountAddr.isContractDeployed()) {
-            accountDeployer.deployAccount(
+            accountFactory.deployAccount(
                 accountAddrSalt,
                 accountLogicOfNonRegisteredUser[accountAddr]
             );
@@ -390,7 +390,7 @@ contract Entry is IEntry, Ownable {
         address addr = addressOfSalt[salt];
         if (addr == address(0)) {
             saltNullifiers[saltNullifier] = true;
-            addr = accountDeployer.computeAccountAddress(
+            addr = accountFactory.computeAccountAddress(
                 salt,
                 defaultAccountLogic
             );

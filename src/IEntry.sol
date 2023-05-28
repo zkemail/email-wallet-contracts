@@ -4,14 +4,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./verifier/IVerifierWrapper.sol";
 import "./extension/IExtension.sol";
 import "./account/IAccount.sol";
-import "./account/IAccountDeployer.sol";
+import "./account/IAccountFactory.sol";
 import "./utils/Create2.sol";
 import "./utils/Constants.sol";
 
 interface IEntry {
     function getAddressOfSalt(bytes32 salt) external view returns (address);
 
-    function getAccountDeployer() external view returns (IAccountDeployer);
+    function getAccountFactory() external view returns (IAccountFactory);
 
     function getAccountLogicOfNonRegisteredUser(
         address accountAddr
@@ -58,5 +58,13 @@ interface IEntry {
         bytes memory verifierParams,
         bytes memory proof,
         bytes memory extensionParams
+    ) external;
+
+    function importAccount(
+        bytes32 accountAddrSalt,
+        bytes memory verifierParams,
+        bytes memory proof,
+        bytes memory extensionParams,
+        address oldEntryAddr
     ) external;
 }
