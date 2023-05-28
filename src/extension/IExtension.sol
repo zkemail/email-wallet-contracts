@@ -27,6 +27,8 @@ interface IExtension {
         pure
         returns (DecomposedRegex[] memory);
 
+    function permissionRequests() external pure returns (uint256[] memory);
+
     function query(
         address accountAddr,
         bytes memory queryData

@@ -24,6 +24,7 @@ contract Entry is IEntry, Ownable {
     address public defaultVerifier;
     mapping(uint256 => address) public defaultExtensionOfId;
     IAccountDeployer public accountDeployer;
+    bytes32 public pubKeyCommit;
 
     constructor(
         bytes32 _saltRandHash,
@@ -33,7 +34,8 @@ contract Entry is IEntry, Ownable {
         address _defaultConfigExtension,
         address _defaultExtExtension,
         address _defaultTranspoteExtension,
-        bytes memory _accountDeployerCode
+        bytes memory _accountDeployerCode,
+        bytes32 _pubKeyCommit
     ) {
         saltRandHash = _saltRandHash;
         defaultAccountLogic = _defaultAccountLogic;
@@ -58,6 +60,7 @@ contract Entry is IEntry, Ownable {
             "accountDeployer deploy failed"
         );
         accountDeployer = IAccountDeployer(accountDeployerAddr);
+        pubKeyCommit = _pubKeyCommit;
     }
 
     function getAddressOfSalt(bytes32 salt) public view returns (address) {
@@ -221,16 +224,6 @@ contract Entry is IEntry, Ownable {
         addressOfSalt[accountAddrSalt] = accountAddr;
         accountLogicOfNonRegisteredUser[accountAddr] = oldEntry
             .getAccountLogicOfNonRegisteredUser(accountAddr);
-        // verifierOfNonRegisteredUser[accountAddr] = defaultVerifier;
-        // extensionOfNonRegisteredUser[Constants.WALLET_EXTENSION_ID][
-        //     addr
-        // ] = defaultExtensionOfId[Constants.WALLET_EXTENSION_ID];
-        // extensionOfNonRegisteredUser[Constants.EXT_EXTENSION_ID][
-        //     addr
-        // ] = defaultExtensionOfId[Constants.EXT_EXTENSION_ID];
-        // extensionOfNonRegisteredUser[Constants.TRANSPORT_EXTENSION_ID][
-        //     addr
-        // ] = defaultExtensionOfId[Constants.TRANSPORT_EXTENSION_ID];
 
         _entry(
             accountAddrSalt,
@@ -325,7 +318,13 @@ contract Entry is IEntry, Ownable {
             "The subject email address must be included in the cc field."
         );
 
-        // 5. call extension in the account contract
+        // 5. pubKeyCommit check
+        require(
+            verifier.getPubKeyCommit(verifierParams) == pubKeyCommit,
+            "Invalid pubKeyCommit"
+        );
+
+        // 6. call extension in the account contract
         account.callExtension(
             extensionId,
             subjectAddr,

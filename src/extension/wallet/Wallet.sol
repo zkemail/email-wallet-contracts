@@ -105,6 +105,11 @@ contract Wallet is IExtension {
         return regexes;
     }
 
+    function permissionRequests() external pure returns (uint256[] memory) {
+        uint256[] memory ids;
+        return ids;
+    }
+
     function query(
         address accountAddr,
         bytes memory queryData
