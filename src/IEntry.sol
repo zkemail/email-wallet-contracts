@@ -30,6 +30,14 @@ interface IEntry {
         address extensionAddress
     ) external;
 
+    function simulateVerification(
+        bytes32 accountAddrSalt,
+        uint extensionId,
+        bytes memory verifierParams,
+        bytes memory proof,
+        bytes memory extensionParams
+    ) external view;
+
     function entry(
         bytes32 accountAddrSalt,
         uint extensionId,

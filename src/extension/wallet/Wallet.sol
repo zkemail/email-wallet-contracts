@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "../IExtension.sol";
 import "../ExtensionHelper.sol";
 import "./TokenRegistry.sol";
+import "../../utils/Constants.sol";
 
 contract Wallet is IExtension {
     using ExtensionHelper for *;
@@ -148,7 +149,16 @@ contract Wallet is IExtension {
         return buildSubject(params);
     }
 
-    function execute(address subjectAddr, bytes memory extensionParams) public {
+    function execute(
+        IExtension.CallContext memory callCtx,
+        IExtension.ForwardContext memory,
+        bytes memory extensionParams
+    ) public {
+        require(
+            callCtx.extensionId == Constants.WALLET_EXTENSION_ID,
+            "Invalid extensionId"
+        );
+        address subjectAddr = callCtx.subjectAddr;
         ExecuteParams memory params = abi.decode(
             extensionParams,
             (ExecuteParams)

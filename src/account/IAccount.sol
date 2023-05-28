@@ -18,17 +18,21 @@ interface IAccount {
 
     function getExtension(uint extensionId) external view returns (IExtension);
 
-    function callExtension(
-        uint extensionId,
-        address subjectAddr,
+    function verifyCall(
         bytes memory verifierParams,
         bytes memory proof,
+        bytes memory extensionParams,
+        IVerifierWrapper verifier,
+        IExtension extension
+    ) external view;
+
+    function callExtension(
+        IExtension.CallContext memory callCtx,
         bytes memory extensionParams
     ) external;
 
     function forwardCall(
-        uint calleeExtensionId,
-        address subjectAddr,
+        IExtension.CallContext memory callCtx,
         bytes memory extensionParams
     ) external;
 

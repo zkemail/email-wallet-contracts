@@ -73,13 +73,13 @@ contract Entry is IEntry, Ownable {
 
     function getAccountLogicOfNonRegisteredUser(
         address accountAddr
-    ) external view returns (address) {
+    ) public view returns (address) {
         return accountLogicOfNonRegisteredUser[accountAddr];
     }
 
     function isExportedAccountSalt(
         bytes32 accountSalt
-    ) external view returns (bool) {
+    ) public view returns (bool) {
         return exportedAccountSalts[accountSalt];
     }
 
@@ -110,29 +110,21 @@ contract Entry is IEntry, Ownable {
         defaultExtensionOfId[extensionId] = extensionAddress;
     }
 
-    // function upgradeAccountLogic(address newLogic) public {
-    //     require(newLogic != address(0), "newLogic must not be zero.");
-    //     accountDeployer.upgradeLogic(msg.sender, newLogic);
-    // }
-
-    // function changeEntryOfAccount(
-    //     address accountAddr,
-    //     address newEntryAddr
-    // ) public {
-    //     require(accountAddr != address(0), "accountAddr must not be zero.");
-    //     require(newEntryAddr != address(0), "newEntryAddr must not be zero.");
-    //     IAccount account = IAccount(accountAddr);
-    //     IExtension transportExt = account.getExtension(
-    //         Constants.TRANSPORT_EXTENSION_ID
-    //     );
-    //     require(msg.sender == address(transportExt), "Invalid msg sender");
-    //     account.changeEntry(newEntryAddr);
-    //     IEntry newEntry = IEntry(newEntryAddr);
-    //     accountDeployer.changeAdmin(
-    //         accountAddr,
-    //         address(newEntry.getAccountDeployer())
-    //     );
-    // }
+    function simulateVerification(
+        bytes32 accountAddrSalt,
+        uint extensionId,
+        bytes memory verifierParams,
+        bytes memory proof,
+        bytes memory extensionParams
+    ) external view {
+        _verify(
+            accountAddrSalt,
+            extensionId,
+            verifierParams,
+            proof,
+            extensionParams
+        );
+    }
 
     function entry(
         bytes32 accountAddrSalt,
@@ -146,8 +138,7 @@ contract Entry is IEntry, Ownable {
             extensionId,
             verifierParams,
             proof,
-            extensionParams,
-            true
+            extensionParams
         );
     }
 
@@ -171,8 +162,7 @@ contract Entry is IEntry, Ownable {
             Constants.WALLET_EXTENSION_ID,
             verifierParams,
             proof,
-            extensionParams,
-            true
+            extensionParams
         );
     }
 
@@ -182,14 +172,12 @@ contract Entry is IEntry, Ownable {
         bytes memory proof,
         bytes memory extensionParams
     ) public {
-        require(!exportedAccountSalts[accountAddrSalt], "already exported");
         _entry(
             accountAddrSalt,
             Constants.TRANSPORT_EXTENSION_ID,
             verifierParams,
             proof,
-            extensionParams,
-            false
+            extensionParams
         );
         exportedAccountSalts[accountAddrSalt] = true;
     }
@@ -202,6 +190,10 @@ contract Entry is IEntry, Ownable {
         address oldEntryAddr
     ) public onlyOwner {
         require(oldEntryAddr != address(0), "oldEntryAddr must not be zero");
+        require(
+            addressOfSalt[accountAddrSalt] == address(0),
+            "Already registered salt"
+        );
         IEntry oldEntry = IEntry(oldEntryAddr);
         oldEntry.exportAccount(
             accountAddrSalt,
@@ -224,14 +216,12 @@ contract Entry is IEntry, Ownable {
         addressOfSalt[accountAddrSalt] = accountAddr;
         accountLogicOfNonRegisteredUser[accountAddr] = oldEntry
             .getAccountLogicOfNonRegisteredUser(accountAddr);
-
         _entry(
             accountAddrSalt,
             Constants.TRANSPORT_EXTENSION_ID,
             verifierParams,
             proof,
-            extensionParams,
-            true
+            extensionParams
         );
     }
 
@@ -240,15 +230,16 @@ contract Entry is IEntry, Ownable {
         uint extensionId,
         bytes memory verifierParams,
         bytes memory proof,
-        bytes memory extensionParams,
-        bool isSaltNullifierCheck
+        bytes memory extensionParams
     ) private {
-        // 1. accountAddr (fromAddr) check
-        address accountAddr = addressOfSalt[accountAddrSalt];
-        require(
-            accountAddr != address(0),
-            "The sender's account is not registered."
+        _verify(
+            accountAddrSalt,
+            extensionId,
+            verifierParams,
+            proof,
+            extensionParams
         );
+        address accountAddr = addressOfSalt[accountAddrSalt];
         if (!accountAddr.isContractDeployed()) {
             accountDeployer.deployAccount(
                 accountAddrSalt,
@@ -280,6 +271,98 @@ contract Entry is IEntry, Ownable {
         }
         IAccount account = IAccount(accountAddr);
         IVerifierWrapper verifier = account.getVerifierWrapper();
+        address subjectAddr = _getAccountAddrWithInit(
+            verifier.getSubjectSalt(verifierParams),
+            verifier.getSubjectSaltNullifier(verifierParams)
+        );
+        bytes32 headerHash = verifier.getHeaderHash(verifierParams);
+        IExtension.CallContext memory callCtx = IExtension.CallContext(
+            extensionId,
+            headerHash,
+            subjectAddr
+        );
+        account.callExtension(callCtx, extensionParams);
+    }
+
+    function _verify(
+        bytes32 accountAddrSalt,
+        uint extensionId,
+        bytes memory verifierParams,
+        bytes memory proof,
+        bytes memory extensionParams
+    ) private view {
+        bool isSaltNullifierCheck = !(extensionId ==
+            Constants.EXT_EXTENSION_ID &&
+            !exportedAccountSalts[accountAddrSalt] &&
+            addressOfSalt[accountAddrSalt] != address(0));
+
+        // 1. account check
+        IVerifierWrapper verifier = _verifyAccount(
+            accountAddrSalt,
+            extensionId,
+            verifierParams,
+            proof,
+            extensionParams,
+            isSaltNullifierCheck
+        );
+        // 2. saltRandHash check
+        if (isSaltNullifierCheck) {
+            require(
+                verifier.getSaltRandHash(verifierParams) == saltRandHash,
+                "Invalid saltRandHash"
+            );
+        }
+        // 3. subjectAddr check
+        bytes32 subjectSalt = verifier.getSubjectSalt(verifierParams);
+        require(
+            isSaltNullifierCheck || subjectSalt == bytes32(0),
+            "The subjectSalt must be 0 when isSaltNullifierCheck is false"
+        );
+        if (subjectSalt != bytes32(0)) {
+            bytes32 subjectSaltNullifier = verifier.getSubjectSaltNullifier(
+                verifierParams
+            );
+            require(
+                (addressOfSalt[subjectSalt] == address(0) &&
+                    !saltNullifiers[subjectSaltNullifier]) ||
+                    (addressOfSalt[subjectSalt] != address(0) &&
+                        saltNullifiers[subjectSaltNullifier]),
+                "subjectSaltNullifier must not be used if address is zero. Otherwise, it must be used."
+            );
+        }
+        // 4. ccSalt == subjectSalt check
+        require(
+            verifier.getCcSalt(verifierParams) == subjectSalt,
+            "The subject email address must be included in the cc field."
+        );
+        // 5. pubKeyCommit check
+        require(
+            verifier.getPubKeyCommit(verifierParams) == pubKeyCommit,
+            "Invalid pubKeyCommit"
+        );
+    }
+
+    function _verifyAccount(
+        bytes32 accountAddrSalt,
+        uint extensionId,
+        bytes memory verifierParams,
+        bytes memory proof,
+        bytes memory extensionParams,
+        bool isSaltNullifierCheck
+    ) private view returns (IVerifierWrapper) {
+        require(
+            !isExportedAccountSalt(accountAddrSalt),
+            "accountAddrSalt is already exported."
+        );
+        address accountAddr = addressOfSalt[accountAddrSalt];
+        IAccount account = IAccount(accountAddr);
+        IVerifierWrapper verifier = IVerifierWrapper(defaultVerifier);
+        IExtension extension = IExtension(defaultExtensionOfId[extensionId]);
+        if (accountAddr != address(0)) {
+            account = IAccount(accountAddr);
+            verifier = account.getVerifierWrapper();
+            extension = account.getExtension(extensionId);
+        }
         require(
             verifier.getFromSalt(verifierParams) == accountAddrSalt,
             "Invalid fromSalt"
@@ -289,58 +372,23 @@ contract Entry is IEntry, Ownable {
                 saltNullifiers[verifier.getFromSaltNullifier(verifierParams)],
             "Invalid fromSaltNullifier"
         );
-
-        // 2. saltRandHash check
-        if (isSaltNullifierCheck) {
-            require(
-                verifier.getSaltRandHash(verifierParams) == saltRandHash,
-                "Invalid saltRandHash"
-            );
-        }
-
-        // 3. subjectAddr check
-        bytes32 subjectSalt = verifier.getSubjectSalt(verifierParams);
-        require(
-            isSaltNullifierCheck || subjectSalt == bytes32(0),
-            "The subjectSalt must be 0 when isSaltNullifierCheck is false"
-        );
-        address subjectAddr = address(0);
-        if (subjectSalt != bytes32(0)) {
-            subjectAddr = _getAccountAddrWithInit(
-                subjectSalt,
-                verifier.getSubjectSaltNullifier(verifierParams)
-            );
-        }
-
-        // 4. ccSalt == subjectSalt check
-        require(
-            verifier.getCcSalt(verifierParams) == subjectSalt,
-            "The subject email address must be included in the cc field."
-        );
-
-        // 5. pubKeyCommit check
-        require(
-            verifier.getPubKeyCommit(verifierParams) == pubKeyCommit,
-            "Invalid pubKeyCommit"
-        );
-
-        // 6. call extension in the account contract
-        account.callExtension(
-            extensionId,
-            subjectAddr,
+        account.verifyCall(
             verifierParams,
             proof,
-            extensionParams
+            extensionParams,
+            verifier,
+            extension
         );
+        return verifier;
     }
 
     function _getAccountAddrWithInit(
         bytes32 salt,
         bytes32 saltNullifier
     ) private returns (address) {
+        if (salt == bytes32(0)) return address(0);
         address addr = addressOfSalt[salt];
         if (addr == address(0)) {
-            require(!saltNullifiers[saltNullifier], "Used saltNullifier");
             saltNullifiers[saltNullifier] = true;
             addr = accountDeployer.computeAccountAddress(
                 salt,
@@ -360,11 +408,6 @@ contract Entry is IEntry, Ownable {
                     addr
                 ] = defaultExtensionOfId[extensionIds[idx]];
             }
-        } else {
-            require(
-                saltNullifiers[saltNullifier],
-                "saltNullifier is not registered."
-            );
         }
         return addr;
     }

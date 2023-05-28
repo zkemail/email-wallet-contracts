@@ -65,23 +65,18 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         return IExtension(extensionOfId[extensionId]);
     }
 
-    function callExtension(
-        uint extensionId,
-        address subjectAddr,
+    function verifyCall(
         bytes memory verifierParams,
         bytes memory proof,
-        bytes memory extensionParams
-    ) external onlyEntry {
-        IVerifierWrapper verifierWrapper = getVerifierWrapper();
+        bytes memory extensionParams,
+        IVerifierWrapper verifier,
+        IExtension extension
+    ) public view {
         // 1. email proof verification
-        require(
-            verifierWrapper.verifyWrap(verifierParams, proof),
-            "Invalid proof"
-        );
+        require(verifier.verifyWrap(verifierParams, proof), "Invalid proof");
         // 2. nullifier check
-        bytes32 headerHash = verifierWrapper.getHeaderHash(verifierParams);
+        bytes32 headerHash = verifier.getHeaderHash(verifierParams);
         require(!emailNullifiers[headerHash], "already used email");
-        IExtension extension = getExtension(extensionId);
         // 3. subject check
         string memory subjectExpected = string.concat(
             SUBJECT_PREFIX,
@@ -90,20 +85,36 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             extension.buildSubject(extensionParams)
         );
         require(
-            keccak256(bytes(verifierWrapper.getSubjectStr(verifierParams))) ==
+            keccak256(bytes(verifier.getSubjectStr(verifierParams))) ==
                 keccak256(bytes(subjectExpected)),
             "The subject is not equal to the expected one."
         );
-        emailNullifiers[headerHash] = true;
-        // 4. call extension
+    }
+
+    function callExtension(
+        IExtension.CallContext memory callCtx,
+        bytes memory extensionParams
+    ) external onlyEntry {
+        emailNullifiers[callCtx.headerHash] = true;
+        IExtension extension = getExtension(callCtx.extensionId);
+        IExtension.ForwardContext memory forwardCtx = IExtension.ForwardContext(
+            false,
+            0
+        );
         if (
-            extensionId == Constants.WALLET_EXTENSION_ID ||
-            extensionId == Constants.CONFIG_EXTENSION_ID ||
-            extensionId == Constants.EXT_EXTENSION_ID
+            callCtx.extensionId == Constants.WALLET_EXTENSION_ID ||
+            callCtx.extensionId == Constants.CONFIG_EXTENSION_ID ||
+            callCtx.extensionId == Constants.EXT_EXTENSION_ID ||
+            callCtx.extensionId == Constants.TRANSPORT_EXTENSION_ID
         ) {
-            _delegateExtCall(address(extension), subjectAddr, extensionParams);
+            _delegateExtCall(
+                address(extension),
+                callCtx,
+                forwardCtx,
+                extensionParams
+            );
         } else {
-            extension.execute(subjectAddr, extensionParams);
+            extension.execute(callCtx, forwardCtx, extensionParams);
         }
         // IExtension.CallType calltype = extension.getCallType();
         // if (calltype == IExtension.CallType.Call) {
@@ -127,8 +138,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
     }
 
     function forwardCall(
-        uint calleeExtensionId,
-        address subjectAddr,
+        IExtension.CallContext memory callCtx,
         bytes memory extensionParams
     ) public {
         uint256 callerExtensionId = extensionIdOfAddr[msg.sender];
@@ -136,22 +146,27 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             callerExtensionId != 0,
             "The id 0 extension cannot forward a call."
         );
+        uint256 calleeExtensionId = callCtx.extensionId;
         require(
             forwardPermissions[callerExtensionId][calleeExtensionId],
             "Not permitted forward"
         );
         address calleeAddr = extensionOfId[calleeExtensionId];
         require(calleeAddr != address(0), "Not registered calleeExtensionId");
+        IExtension.ForwardContext memory forwardCtx = IExtension.ForwardContext(
+            true,
+            callerExtensionId
+        );
         if (
             calleeExtensionId == Constants.WALLET_EXTENSION_ID ||
             calleeExtensionId == Constants.CONFIG_EXTENSION_ID ||
             calleeExtensionId == Constants.EXT_EXTENSION_ID ||
             calleeExtensionId == Constants.TRANSPORT_EXTENSION_ID
         ) {
-            _delegateExtCall(calleeAddr, subjectAddr, extensionParams);
+            _delegateExtCall(calleeAddr, callCtx, forwardCtx, extensionParams);
         } else {
             IExtension callee = IExtension(calleeAddr);
-            callee.execute(subjectAddr, extensionParams);
+            callee.execute(callCtx, forwardCtx, extensionParams);
         }
     }
 
@@ -179,13 +194,15 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
 
     function _delegateExtCall(
         address extensionAddr,
-        address subjectAddr,
+        IExtension.CallContext memory callCtx,
+        IExtension.ForwardContext memory forwardCtx,
         bytes memory extensionParams
     ) private {
         (bool success, bytes memory returnData) = extensionAddr.delegatecall(
             abi.encodeWithSignature(
-                "execute(address,bytes)",
-                subjectAddr,
+                "execute((uint256,bytes32,address),(bool,uint256),bytes)",
+                callCtx,
+                forwardCtx,
                 extensionParams
             )
         );

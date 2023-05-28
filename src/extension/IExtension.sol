@@ -15,6 +15,17 @@ interface IExtension {
         string regexDefOfString;
     }
 
+    struct CallContext {
+        uint256 extensionId;
+        bytes32 headerHash;
+        address subjectAddr;
+    }
+
+    struct ForwardContext {
+        bool isForwarded;
+        uint256 forwarderId;
+    }
+
     function commandName() external pure returns (string memory);
 
     function queryDecomposedRegexes()
@@ -39,7 +50,8 @@ interface IExtension {
     ) external pure returns (string memory);
 
     function execute(
-        address subjectAddr,
+        CallContext memory callCtx,
+        ForwardContext memory forwardCtx,
         bytes memory extensionParams
     ) external;
 

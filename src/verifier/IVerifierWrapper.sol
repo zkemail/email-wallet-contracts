@@ -36,4 +36,8 @@ interface IVerifierWrapper {
     function getSaltRandHash(
         bytes memory params
     ) external pure returns (bytes32);
+
+    function getPubKeyCommit(
+        bytes memory params
+    ) external pure returns (bytes32);
 }

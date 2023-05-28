@@ -9,6 +9,7 @@ import "../VersionManager.sol";
 import "../../account/IAccount.sol";
 import "../../account/IAccountDeployer.sol";
 import "../../IEntry.sol";
+import "../../utils/Constants.sol";
 
 contract Config is IExtension {
     using ExtensionHelper for *;
@@ -168,11 +169,20 @@ contract Config is IExtension {
         return buildSubject(params);
     }
 
-    function execute(address subjectAddr, bytes memory extensionParams) public {
+    function execute(
+        IExtension.CallContext memory callCtx,
+        IExtension.ForwardContext memory,
+        bytes memory extensionParams
+    ) public {
+        require(
+            callCtx.extensionId == Constants.CONFIG_EXTENSION_ID,
+            "Invalid extensionId"
+        );
         ExecuteParams memory params = abi.decode(
             extensionParams,
             (ExecuteParams)
         );
+        address subjectAddr = callCtx.subjectAddr;
         require(subjectAddr == address(0), "subjectAddr is not used.");
         bytes32 contractNameHash = keccak256(
             bytes(params.contractName.toString())
