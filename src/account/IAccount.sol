@@ -18,6 +18,10 @@ interface IAccount {
 
     function getExtension(uint extensionId) external view returns (IExtension);
 
+    function isExtensionInstalled(
+        uint extensionId
+    ) external view returns (bool);
+
     function verifyCall(
         bytes memory verifierParams,
         bytes memory proof,
@@ -36,9 +40,9 @@ interface IAccount {
         bytes memory extensionParams
     ) external;
 
-    function updateExtension(uint extensionId, address extensionAddr) external;
-
     function changeVerifier(address newVerifier) external;
+
+    function changeExtension(uint extensionId, address extensionAddr) external;
 
     function changeEntry(address newEntry) external;
 }

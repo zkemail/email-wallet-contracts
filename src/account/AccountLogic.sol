@@ -40,7 +40,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             "Not equal lengthes"
         );
         for (uint idx = 0; idx < _initExtensionIds.length; idx++) {
-            updateExtension(_initExtensionIds[idx], _initExtensionAddrs[idx]);
+            changeExtension(_initExtensionIds[idx], _initExtensionAddrs[idx]);
         }
         // An entry contract owns the deployer contract (=msg.sender).
         Ownable deployer = Ownable(msg.sender);
@@ -63,6 +63,12 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             "not registered extension"
         );
         return IExtension(extensionOfId[extensionId]);
+    }
+
+    function isExtensionInstalled(
+        uint extensionId
+    ) external view returns (bool) {
+        return extensionOfId[extensionId] != address(0);
     }
 
     function verifyCall(
@@ -170,7 +176,12 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         }
     }
 
-    function updateExtension(
+    function changeVerifier(address newVerifier) external onlySelf {
+        require(newVerifier != address(0), "newVerifier is not zero address.");
+        verifier = newVerifier;
+    }
+
+    function changeExtension(
         uint extensionId,
         address extensionAddr
     ) public onlySelf {
@@ -180,11 +191,6 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         );
         extensionOfId[extensionId] = extensionAddr;
         extensionIdOfAddr[extensionAddr] = extensionId;
-    }
-
-    function changeVerifier(address newVerifier) external onlySelf {
-        require(newVerifier != address(0), "newVerifier is not zero address.");
-        verifier = newVerifier;
     }
 
     function changeEntry(address newEntry) external onlySelf {

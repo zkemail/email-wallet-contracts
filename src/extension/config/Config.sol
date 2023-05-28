@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.so
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "../IExtension.sol";
 import "../ExtensionHelper.sol";
-import "./ConfigRepository.sol";
+import "./ConfigRegistry.sol";
 import "../VersionManager.sol";
 import "../../account/IAccount.sol";
 import "../../account/IAccountFactory.sol";
@@ -24,10 +24,11 @@ contract Config is IExtension {
     string public constant VERIFIER_NAME = "verifier";
     bytes32 public constant VERIFIER_NAME_HASH =
         keccak256(bytes(VERIFIER_NAME));
-    ConfigRepository public configRepository;
+    string public constant DEV_NAME_PREFIX = " developed by ";
+    ConfigRegistry public configRegistry;
 
-    constructor(address _configRepository) {
-        configRepository = ConfigRepository(_configRepository);
+    constructor(address _configRegistry) {
+        configRegistry = ConfigRegistry(_configRegistry);
     }
 
     function commandName() public pure returns (string memory) {
@@ -43,7 +44,7 @@ contract Config is IExtension {
         regexes[0] = DecomposedRegex(
             false,
             ExtensionHelper.STRING_TYPE_NAME,
-            "my config of"
+            "my config of "
         );
         regexes[1] = DecomposedRegex(
             true,
@@ -92,13 +93,9 @@ contract Config is IExtension {
         regexes[4] = DecomposedRegex(
             false,
             ExtensionHelper.STRING_TYPE_NAME,
-            " developed by "
-        );
-        regexes[5] = DecomposedRegex(
-            true,
-            ExtensionHelper.STRING_TYPE_NAME,
             string.concat(
                 "(",
+                DEV_NAME_PREFIX,
                 ExtensionHelper.CAPITAL_ALPHABET,
                 "|",
                 ExtensionHelper.SMALL_ALPHABET,
@@ -123,20 +120,22 @@ contract Config is IExtension {
     ) public view returns (string memory) {
         string memory contractName = abi.decode(queryData, (string));
         bytes32 contractNameHash = keccak256(bytes(contractName));
-        string memory devName = configRepository.getCurrentDev(accountAddr);
         // This contract is delegate-called from the account contract.
-        IAccount account = IAccount(address(this));
+        IAccount account = IAccount(accountAddr);
+        string memory devName;
         string memory version;
         if (contractNameHash == ACCOUNT_NAME_HASH) {
+            devName = configRegistry.getAccountCurrentDev(accountAddr);
             IEntry entry = IEntry(account.getEntryAddr());
             ProxyAdmin factory = ProxyAdmin(address(entry.getAccountFactory()));
-            version = configRepository.accountLogicManager().getVersion(
+            version = configRegistry.accountLogicManager().getVersion(
                 factory.getProxyImplementation(
-                    ITransparentUpgradeableProxy(address(this))
+                    ITransparentUpgradeableProxy(accountAddr)
                 )
             );
         } else if (contractNameHash == VERIFIER_NAME_HASH) {
-            version = configRepository.verifierManager().getVersion(
+            devName = configRegistry.getVerifierCurrentDev(accountAddr);
+            version = configRegistry.verifierManager().getVersion(
                 address(account.getVerifierWrapper())
             );
         } else {
@@ -186,24 +185,32 @@ contract Config is IExtension {
             bytes(params.contractName.toString())
         );
         // This contract is delegate-called from the account contract.
+        string memory devName = params.devName.toString().beyond(
+            DEV_NAME_PREFIX.toSlice()
+        );
         IAccount account = IAccount(address(this));
-        string memory devName = params.devName.toString();
-        if (bytes(devName).length == 0) {
-            devName = configRepository.getCurrentDev(address(this));
-        }
-        address dev = configRepository.devManager().getAddress(devName);
         if (contractNameHash == ACCOUNT_NAME_HASH) {
+            if (bytes(devName).length == 0) {
+                devName = configRegistry.getAccountCurrentDev(address(this));
+            }
+            address dev = configRegistry.devManager().getAddress(devName);
             IEntry entry = IEntry(account.getEntryAddr());
-            address accountLogic = configRepository
+            address accountLogic = configRegistry
                 .accountLogicManager()
                 .getContract(dev, params.versionName.toString());
             entry.getAccountFactory().upgradeLogic(accountLogic);
+            configRegistry.setAccountCurrentDev(devName);
         } else if (contractNameHash == VERIFIER_NAME_HASH) {
-            address verifier = configRepository.verifierManager().getContract(
+            if (bytes(devName).length == 0) {
+                devName = configRegistry.getVerifierCurrentDev(address(this));
+            }
+            address dev = configRegistry.devManager().getAddress(devName);
+            address verifier = configRegistry.verifierManager().getContract(
                 dev,
                 params.versionName.toString()
             );
             account.changeVerifier(verifier);
+            configRegistry.setVerifierCurrentDev(devName);
         } else {
             require(false, "Not supported contract name.");
         }
