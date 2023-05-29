@@ -145,10 +145,10 @@ contract Config is IExtension {
         string memory extensionName = abi.decode(queryData, (string));
         // This contract is delegate-called from the account contract.
         uint256 extensionId = extRegistry.getExtensionId(extensionName);
-        string memory devName = extRegistry.getCurrentDev(
-            accountAddr,
-            extensionId
-        );
+        // string memory devName = extRegistry.getCurrentDev(
+        //     accountAddr,
+        //     extensionId
+        // );
         address managerAddr = extRegistry.getExtensionManager(extensionId);
         if (managerAddr == address(0)) {
             return
@@ -158,7 +158,7 @@ contract Config is IExtension {
                     " does not exist."
                 );
         }
-        IAccount account = IAccount(address(this));
+        IAccount account = IAccount(accountAddr);
         if (!account.isExtensionInstalled(extensionId)) {
             return
                 string.concat(
@@ -171,6 +171,7 @@ contract Config is IExtension {
         string memory version = VersionManager(managerAddr).getVersion(
             address(extension)
         );
+        string memory devName = extRegistry.getDevOfAddress(address(extension));
         return
             string.concat(
                 "You are using version ",
@@ -196,6 +197,10 @@ contract Config is IExtension {
         IExtension.ForwardContext memory,
         bytes memory extensionParams
     ) public {
+        require(
+            address(this) == msg.sender,
+            "This function must be delegate-called."
+        );
         require(
             callCtx.extensionId == Constants.EXT_EXTENSION_ID,
             "Invalid extensionId"
@@ -225,6 +230,7 @@ contract Config is IExtension {
             .beyond(DEV_NAME_PREFIX.toSlice())
             .toString();
         IAccount account = IAccount(address(this));
+        uint[] memory requests;
         if (opTypeHash == OP_INSTALL_HASH) {
             require(
                 bytes(version).length > 0,
@@ -236,7 +242,8 @@ contract Config is IExtension {
                     "The devName cannot be omitted when the extension is not installed."
                 );
             } else if (bytes(devName).length == 0) {
-                devName = extRegistry.getCurrentDev(address(this), extensionId);
+                address curExtAddr = address(account.getExtension(extensionId));
+                devName = extRegistry.getDevOfAddress(curExtAddr);
             }
             address dev = extRegistry.devManager().getAddress(devName);
             address extensionAddr = VersionManager(managerAddr).getContract(
@@ -244,10 +251,9 @@ contract Config is IExtension {
                 version
             );
             account.changeExtension(extensionId, extensionAddr);
-            uint[] memory permissionRequests = IExtension(extensionAddr)
-                .permissionRequests();
-            for (uint idx = 0; idx < permissionRequests.length; idx++) {
-                account.addPermission(extensionId, permissionRequests[idx]);
+            requests = IExtension(extensionAddr).permissionRequests();
+            for (uint idx = 0; idx < requests.length; idx++) {
+                account.addPermission(extensionId, requests[idx]);
             }
         } else if (opTypeHash == OP_UNINSTALL_HASH) {
             require(
@@ -255,17 +261,16 @@ contract Config is IExtension {
                 "version and devName must be omitted when opType==uninstall."
             );
             account.changeExtension(extensionId, address(0));
-            address dev = extRegistry.devManager().getAddress(
-                extRegistry.getCurrentDev(address(this), extensionId)
-            );
+            address curExtAddr = address(account.getExtension(extensionId));
+            devName = extRegistry.getDevOfAddress(curExtAddr);
+            address dev = extRegistry.devManager().getAddress(devName);
             address extensionAddr = VersionManager(managerAddr).getContract(
                 dev,
                 version
             );
-            uint[] memory permissionRequests = IExtension(extensionAddr)
-                .permissionRequests();
-            for (uint idx = 0; idx < permissionRequests.length; idx++) {
-                account.removePermission(extensionId, permissionRequests[idx]);
+            requests = IExtension(extensionAddr).permissionRequests();
+            for (uint idx = 0; idx < requests.length; idx++) {
+                account.removePermission(extensionId, requests[idx]);
             }
         } else {
             require(false, "Not supported operation.");

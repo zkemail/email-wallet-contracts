@@ -127,19 +127,19 @@ contract Config is IExtension {
         string memory devName;
         string memory version;
         if (contractNameHash == ACCOUNT_NAME_HASH) {
-            devName = configRegistry.getAccountCurrentDev(accountAddr);
             IEntry entry = IEntry(account.getEntryAddr());
             ProxyAdmin factory = ProxyAdmin(address(entry.getAccountFactory()));
+            address accountLogicAddr = factory.getProxyImplementation(
+                ITransparentUpgradeableProxy(accountAddr)
+            );
+            devName = configRegistry.getDevOfAddress(accountLogicAddr);
             version = configRegistry.accountLogicManager().getVersion(
-                factory.getProxyImplementation(
-                    ITransparentUpgradeableProxy(accountAddr)
-                )
+                accountLogicAddr
             );
         } else if (contractNameHash == VERIFIER_NAME_HASH) {
-            devName = configRegistry.getVerifierCurrentDev(accountAddr);
-            version = configRegistry.verifierManager().getVersion(
-                address(account.getVerifierWrapper())
-            );
+            address verifierAddr = address(account.getVerifierWrapper());
+            devName = configRegistry.getDevOfAddress(verifierAddr);
+            version = configRegistry.verifierManager().getVersion(verifierAddr);
         } else {
             return
                 string.concat(
@@ -174,6 +174,10 @@ contract Config is IExtension {
         bytes memory extensionParams
     ) public {
         require(
+            address(this) == msg.sender,
+            "This function must be delegate-called."
+        );
+        require(
             callCtx.extensionId == Constants.CONFIG_EXTENSION_ID,
             "Invalid extensionId"
         );
@@ -195,19 +199,26 @@ contract Config is IExtension {
             .toString();
         IAccount account = IAccount(address(this));
         if (contractNameHash == ACCOUNT_NAME_HASH) {
+            IEntry entry = IEntry(account.getEntryAddr());
             if (bytes(devName).length == 0) {
-                devName = configRegistry.getAccountCurrentDev(address(this));
+                ProxyAdmin factory = ProxyAdmin(
+                    address(entry.getAccountFactory())
+                );
+                address curAccountLogicAddr = factory.getProxyImplementation(
+                    ITransparentUpgradeableProxy(address(this))
+                );
+                devName = configRegistry.getDevOfAddress(curAccountLogicAddr);
             }
             address dev = configRegistry.devManager().getAddress(devName);
-            IEntry entry = IEntry(account.getEntryAddr());
             address accountLogic = configRegistry
                 .accountLogicManager()
                 .getContract(dev, params.versionName.toString());
             entry.getAccountFactory().upgradeLogic(accountLogic);
-            configRegistry.setAccountCurrentDev(devName);
         } else if (contractNameHash == VERIFIER_NAME_HASH) {
             if (bytes(devName).length == 0) {
-                devName = configRegistry.getVerifierCurrentDev(address(this));
+                devName = configRegistry.getDevOfAddress(
+                    address(account.getVerifierWrapper())
+                );
             }
             address dev = configRegistry.devManager().getAddress(devName);
             address verifier = configRegistry.verifierManager().getContract(
@@ -215,7 +226,6 @@ contract Config is IExtension {
                 params.versionName.toString()
             );
             account.changeVerifier(verifier);
-            configRegistry.setVerifierCurrentDev(devName);
         } else {
             require(false, "Not supported contract name.");
         }

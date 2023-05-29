@@ -155,6 +155,10 @@ contract Wallet is IExtension {
         bytes memory extensionParams
     ) public {
         require(
+            address(this) == msg.sender,
+            "This function must be delegate-called."
+        );
+        require(
             callCtx.extensionId == Constants.WALLET_EXTENSION_ID,
             "Invalid extensionId"
         );

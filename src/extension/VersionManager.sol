@@ -27,6 +27,10 @@ contract VersionManager {
             contractOfVersionAndDev[msg.sender][versionName] == address(0),
             "Already registered"
         );
+        require(
+            contractAddr != address(0),
+            "contractAddr must not be zero address."
+        );
         contractOfVersionAndDev[msg.sender][versionName] = contractAddr;
         versionOfContract[contractAddr] = versionName;
     }

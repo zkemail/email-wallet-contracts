@@ -7,8 +7,10 @@ contract ConfigRegistry {
     DevManager public devManager;
     VersionManager public accountLogicManager;
     VersionManager public verifierManager;
-    mapping(address => string) public accountCurrentDevOfUser;
-    mapping(address => string) public verifierCurrentDevOfUser;
+    mapping(address => string) public devOfAddress;
+
+    // mapping(address => string) public accountCurrentDevOfUser;
+    // mapping(address => string) public verifierCurrentDevOfUser;
 
     constructor(address _devManager) {
         devManager = DevManager(_devManager);
@@ -16,33 +18,65 @@ contract ConfigRegistry {
         verifierManager = new VersionManager();
     }
 
-    function getAccountCurrentDev(
-        address accountAddr
+    // function getAccountCurrentDev(
+    //     address accountAddr
+    // ) public view returns (string memory) {
+    //     return accountCurrentDevOfUser[accountAddr];
+    // }
+
+    // function getVerifierCurrentDev(
+    //     address accountAddr
+    // ) public view returns (string memory) {
+    //     return verifierCurrentDevOfUser[accountAddr];
+    // }
+
+    // function setAccountCurrentDev(string memory devName) public {
+    //     require(bytes(devName).length > 0, "devName must not be empty");
+    //     require(
+    //         devManager.getAddress(devName) != address(0),
+    //         "devName is not registered"
+    //     );
+    //     accountCurrentDevOfUser[msg.sender] = devName;
+    // }
+
+    // function setVerifierCurrentDev(string memory devName) public {
+    //     require(bytes(devName).length > 0, "devName must not be empty");
+    //     require(
+    //         devManager.getAddress(devName) != address(0),
+    //         "devName is not registered"
+    //     );
+    //     verifierCurrentDevOfUser[msg.sender] = devName;
+    // }
+
+    function getDevOfAddress(
+        address contractAddr
     ) public view returns (string memory) {
-        return accountCurrentDevOfUser[accountAddr];
+        return devOfAddress[contractAddr];
     }
 
-    function getVerifierCurrentDev(
-        address accountAddr
-    ) public view returns (string memory) {
-        return verifierCurrentDevOfUser[accountAddr];
-    }
-
-    function setAccountCurrentDev(string memory devName) public {
-        require(bytes(devName).length > 0, "devName must not be empty");
+    function registerNewAccountLogic(
+        string memory devName,
+        string memory versionName,
+        address contractAddr
+    ) public {
         require(
-            devManager.getAddress(devName) != address(0),
-            "devName is not registered"
+            devManager.getAddress(devName) == msg.sender,
+            "Invalid devName"
         );
-        accountCurrentDevOfUser[msg.sender] = devName;
+        accountLogicManager.registerAddress(versionName, contractAddr);
+        devOfAddress[contractAddr] = devName;
     }
 
-    function setVerifierCurrentDev(string memory devName) public {
-        require(bytes(devName).length > 0, "devName must not be empty");
+    function registerNewVerifierLogic(
+        string memory devName,
+        string memory versionName,
+        address contractAddr
+    ) public {
         require(
-            devManager.getAddress(devName) != address(0),
-            "devName is not registered"
+            devManager.getAddress(devName) == msg.sender,
+            "Invalid devName"
         );
-        verifierCurrentDevOfUser[msg.sender] = devName;
+        verifierManager.registerAddress(versionName, contractAddr);
+        devOfAddress[contractAddr] = devName;
     }
 }
