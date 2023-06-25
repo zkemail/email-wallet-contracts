@@ -13,12 +13,14 @@ interface IEntry {
 
     function getAccountFactory() external view returns (IAccountFactory);
 
+    function getOwner() external view returns (address);
+
     function getAccountLogicOfNonRegisteredUser(
         address accountAddr
     ) external view returns (address);
 
-    function isExportedAccountSalt(
-        bytes32 accountSalt
+    function isExportedAccount(
+        address accountAddr
     ) external view returns (bool);
 
     function changeDefaultAccountLogic(address accountLogic) external;

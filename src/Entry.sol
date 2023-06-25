@@ -19,7 +19,7 @@ contract Entry is IEntry, Ownable {
     mapping(address => address) public verifierOfNonRegisteredUser;
     mapping(uint256 => mapping(address => address))
         public extensionOfNonRegisteredUser;
-    mapping(bytes32 => bool) public exportedAccountSalts;
+    mapping(address => bool) public exportedAccount;
     address public defaultAccountLogic;
     address public defaultVerifier;
     mapping(uint256 => address) public defaultExtensionOfId;
@@ -71,16 +71,18 @@ contract Entry is IEntry, Ownable {
         return accountFactory;
     }
 
+    function getOwner() external view returns (address) {
+        return owner();
+    }
+
     function getAccountLogicOfNonRegisteredUser(
         address accountAddr
     ) public view returns (address) {
         return accountLogicOfNonRegisteredUser[accountAddr];
     }
 
-    function isExportedAccountSalt(
-        bytes32 accountSalt
-    ) public view returns (bool) {
-        return exportedAccountSalts[accountSalt];
+    function isExportedAccount(address accountAddr) public view returns (bool) {
+        return exportedAccount[accountAddr];
     }
 
     function changeDefaultAccountLogic(address accountLogic) public onlyOwner {
@@ -179,7 +181,7 @@ contract Entry is IEntry, Ownable {
             proof,
             extensionParams
         );
-        exportedAccountSalts[accountAddrSalt] = true;
+        exportedAccount[addressOfSalt[accountAddrSalt]] = true;
     }
 
     function importAccount(
@@ -291,10 +293,11 @@ contract Entry is IEntry, Ownable {
         bytes memory proof,
         bytes memory extensionParams
     ) private view {
+        address accountAddr = addressOfSalt[accountAddrSalt];
         bool isSaltNullifierCheck = !(extensionId ==
             Constants.EXT_EXTENSION_ID &&
-            !exportedAccountSalts[accountAddrSalt] &&
-            addressOfSalt[accountAddrSalt] != address(0));
+            !exportedAccount[accountAddr] &&
+            accountAddr != address(0));
 
         // 1. account check
         IVerifierWrapper verifier = _verifyAccount(
@@ -350,11 +353,11 @@ contract Entry is IEntry, Ownable {
         bytes memory extensionParams,
         bool isSaltNullifierCheck
     ) private view returns (IVerifierWrapper) {
-        require(
-            !isExportedAccountSalt(accountAddrSalt),
-            "accountAddrSalt is already exported."
-        );
         address accountAddr = addressOfSalt[accountAddrSalt];
+        require(
+            !isExportedAccount(accountAddr),
+            "accountAddr is already exported."
+        );
         IAccount account = IAccount(accountAddr);
         IVerifierWrapper verifier = IVerifierWrapper(defaultVerifier);
         IExtension extension = IExtension(defaultExtensionOfId[extensionId]);
