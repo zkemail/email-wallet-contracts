@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
-import "../verifier/IVerifierWrapper.sol";
+import "../verifier/IVerifier.sol";
 
 interface IExtension {
     event Executed(
@@ -17,7 +17,7 @@ interface IExtension {
 
     struct CallContext {
         uint256 extensionId;
-        bytes32 headerHash;
+        bytes32 fromEmailNullifier;
         address subjectAddr;
     }
 

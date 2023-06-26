@@ -3,9 +3,9 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "./AccountStorage.sol";
-import "./AccountProxy.sol";
 import "./IAccount.sol";
-import "../verifier/IVerifierWrapper.sol";
+import "../ICore.sol";
+import "../verifier/IVerifier.sol";
 import "../extension/IExtension.sol";
 import "../utils/Create2.sol";
 import "../utils/Constants.sol";
@@ -13,10 +13,18 @@ import "../utils/Constants.sol";
 contract AccountLogic is IAccount, AccountStorage, Initializable {
     using Create2 for bytes32;
 
-    modifier onlyEntry() {
+    modifier onlyCore() {
         require(
-            msg.sender == entry,
-            "Only the entry contract can call this function."
+            msg.sender == coreAddr,
+            "Only the core contract can call this function."
+        );
+        _;
+    }
+
+    modifier onlyRelayer() {
+        require(
+            msg.sender == getRelayerAddr(),
+            "Only the current relayer can call this function."
         );
         _;
     }
@@ -29,61 +37,131 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         _;
     }
 
-    function initialize(
-        address _verifier,
-        uint256[] calldata _initExtensionIds,
-        address[] calldata _initExtensionAddrs
-    ) public initializer {
-        require(_verifier != address(0), "_verifier must not be zero address.");
-        require(
-            _initExtensionIds.length == _initExtensionAddrs.length,
-            "Not equal lengthes"
+    function initialize(address _relayer) public initializer {
+        require(_relayer != address(0), "_relayer must not be zero address");
+        ICore core = ICore(msg.sender);
+        ICore.AccountData memory accountData = core.getAccountData(
+            address(this)
         );
-        for (uint idx = 0; idx < _initExtensionIds.length; idx++) {
-            changeExtension(_initExtensionIds[idx], _initExtensionAddrs[idx]);
+        uint256[] memory initExtensionIds = core.initExtensionIds();
+        require(accountData.pubKey.length > 0, "Not registered account");
+        nonce = 0;
+        accountLogicAddr = accountData.initAccountLogic;
+        verifierAddr = accountData.initVerifier;
+        for (uint idx = 0; idx < initExtensionIds.length; idx++) {
+            changeExtension(
+                initExtensionIds[idx],
+                accountData.initExtensions[idx]
+            );
         }
-        // An entry contract owns the deployer contract (=msg.sender).
-        Ownable deployer = Ownable(msg.sender);
-        entry = deployer.owner();
-        verifier = _verifier;
+        require(accountData.relayer == _relayer);
+        coreAddr = msg.sender;
     }
 
-    function getEntryAddr() external view returns (address) {
-        return entry;
+    function getCoreAddr() public view returns (address) {
+        return coreAddr;
     }
 
-    function getVerifierWrapper() public view returns (IVerifierWrapper) {
-        require(verifier != address(0), "The verifier is not set.");
-        return IVerifierWrapper(verifier);
-    }
-
-    function getExtension(uint extensionId) public view returns (IExtension) {
-        require(
-            extensionOfId[extensionId] != address(0),
-            "not registered extension"
+    function getRelayerAddr() public view returns (address) {
+        ICore core = ICore(coreAddr);
+        ICore.AccountData memory accountData = core.getAccountData(
+            address(this)
         );
-        return IExtension(extensionOfId[extensionId]);
+        return accountData.relayer;
     }
 
-    function isExtensionInstalled(
-        uint extensionId
-    ) external view returns (bool) {
-        return extensionOfId[extensionId] != address(0);
+    function getAccountLogicAddr() public view returns (address) {
+        return accountLogicAddr;
     }
 
-    function verifyCall(
+    function getVerifierAddr() public view returns (address) {
+        return verifierAddr;
+    }
+
+    function getExtensionAddr(uint extensionId) public view returns (address) {
+        return extensionAddrOfId[extensionId];
+    }
+
+    function isUsedEmailNullifier(
+        bytes32 emailNullifier
+    ) public view returns (bool) {
+        return emailNullifiers[emailNullifier];
+    }
+
+    function validateUserOp(
         bytes memory verifierParams,
         bytes memory proof,
-        bytes memory extensionParams,
-        IVerifierWrapper verifier,
-        IExtension extension
+        bytes memory extensionParams
     ) public view {
-        // 1. email proof verification
-        require(verifier.verifyWrap(verifierParams, proof), "Invalid proof");
-        // 2. nullifier check
-        bytes32 headerHash = verifier.getHeaderHash(verifierParams);
-        require(!emailNullifiers[headerHash], "already used email");
-        // 3. subject check
+        ICore core = ICore(coreAddr);
+        IVerifier verifier = IVerifier(verifierAddr);
+        (
+            IVerifier.SenderPublicInput memory senderPublicInput,
+            bytes memory remainingVerifierParams
+        ) = abi.decode(verifierParams, (IVerifier.SenderPublicInput, bytes));
+        (bytes memory senderProof, bytes memory remainingProof) = abi.decode(
+            proof,
+            (bytes, bytes)
+        );
+        ICore.AccountData memory fromAccountData = core.getAccountData(
+            address(this)
+        );
+        /// 1. Verify the initialization of `fromAccount`.
+        if (nonce == 0) {
+            /// [TODO] Verify that the deployment code in `UserOp` is not zero.
+            require(
+                (fromAccountData.initDepositEmailNullifier == bytes32(0)) ||
+                    (fromAccountData.initDepositEmailNullifier ==
+                        senderPublicInput.fromEmailNullifier),
+                "fromEmailNullifier is invalid."
+            );
+        }
+
+        /// 2. Verify the sender proof.
+        require(
+            verifier.verifySenderProof(senderPublicInput, senderProof),
+            "senderProof is invalid."
+        );
+        require(
+            senderPublicInput.fromRelayerHash == fromAccountData.relayerHash,
+            "fromRelayerHash is invalid."
+        );
+        require(
+            senderPublicInput.fromSalt == fromAccountData.salt,
+            "fromSalt is invalid."
+        );
+        require(
+            !emailNullifiers[senderPublicInput.fromEmailNullifier],
+            "fromEmailNullifier is already used."
+        );
+        require(
+            keccak256(senderPublicInput.pubKey) ==
+                keccak256(fromAccountData.pubKey),
+            "pubKey is invalid."
+        );
+        /// [TODO] Verify `paymaster==relayer`.
+    }
+
+    function validateUserOpAddition(
+        bytes memory verifierParams,
+        bytes memory proof,
+        uint256 extensionId,
+        bytes memory extensionParams
+    ) public view {
+        ICore core = ICore(coreAddr);
+        IVerifier verifier = IVerifier(verifierAddr);
+        (
+            IVerifier.SenderPublicInput memory senderPublicInput,
+            bytes memory remainingVerifierParams
+        ) = abi.decode(verifierParams, (IVerifier.SenderPublicInput, bytes));
+        (, bytes memory remainingProof) = abi.decode(proof, (bytes, bytes));
+        ICore.AccountData memory fromAccountData = core.getAccountData(
+            address(this)
+        );
+        /// subject check.
+        address extensionAddr = extensionAddrOfId[extensionId];
+        require(extensionAddr != address(0), "extensionId is not registered.");
+        IExtension extension = IExtension(extensionAddr);
         string memory subjectExpected = string.concat(
             SUBJECT_PREFIX,
             extension.commandName(),
@@ -91,18 +169,159 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             extension.buildSubject(extensionParams)
         );
         require(
-            keccak256(bytes(verifier.getSubjectStr(verifierParams))) ==
+            keccak256(bytes(senderPublicInput.maskedSubjectStr)) ==
                 keccak256(bytes(subjectExpected)),
             "The subject is not equal to the expected one."
         );
+
+        /// If nonce==0, verify `psiProof`.
+        if (nonce == 0) {
+            (
+                IVerifier.PsiPublicInput memory psiPublicInput,
+                bytes memory _remainingVerifierParams
+            ) = abi.decode(
+                    remainingVerifierParams,
+                    (IVerifier.PsiPublicInput, bytes)
+                );
+            remainingVerifierParams = _remainingVerifierParams;
+            (bytes memory psiProof, bytes memory _remainingProof) = abi.decode(
+                remainingProof,
+                (bytes, bytes)
+            );
+            remainingProof = _remainingProof;
+            require(
+                verifier.verifyPsiProof(psiPublicInput, psiProof),
+                "psiProof is invalid."
+            );
+            require(
+                senderPublicInput.fromAddrCommit == psiPublicInput.addrCommit,
+                "addrCommit is invalid."
+            );
+            require(
+                psiPublicInput.relayerHash == fromAccountData.relayerHash,
+                "relayerHash is invalid."
+            );
+            require(
+                !core.isRegisteredPsiPoint(
+                    fromAccountData.relayer,
+                    psiPublicInput.psiPoint
+                ),
+                "psiPoint is already registered."
+            );
+            // core.registerPsiPoint(relayer,psiPublicInput.psiPoint);
+        }
+
+        /// Verify the recipient proof if necessary.
+        if (!senderPublicInput.isSubjectAddrNull) {
+            (IVerifier.RecipientPublicInput memory recipientPublicInput, ) = abi
+                .decode(
+                    remainingVerifierParams,
+                    (IVerifier.RecipientPublicInput, bytes)
+                );
+            (bytes memory recipientProof, ) = abi.decode(
+                remainingProof,
+                (bytes, bytes)
+            );
+            require(
+                verifier.verifyRecipientProof(
+                    recipientPublicInput,
+                    recipientProof
+                ),
+                "recipientProof is invalid."
+            );
+            require(
+                senderPublicInput.subjectAddrCommit ==
+                    recipientPublicInput.subjectAddrCommit,
+                "subjectAddrCommit is invalid."
+            );
+            address subjectAccountAddr = core.getAccountOfSalt(
+                recipientPublicInput.subjectSalt
+            );
+            bytes32 expectedRelayerHash = fromAccountData.relayerHash;
+            if (subjectAccountAddr != address(0)) {
+                IAccount subjectAccount = IAccount(subjectAccountAddr);
+                ICore.AccountData memory subjectAccountData = core
+                    .getAccountData(subjectAccountAddr);
+                expectedRelayerHash = subjectAccountData.relayerHash;
+            }
+            require(
+                recipientPublicInput.subjectRelayerHash == expectedRelayerHash,
+                "subjectRelayerHash is invalid."
+            );
+        }
     }
 
-    function callExtension(
-        IExtension.CallContext memory callCtx,
+    function executeUserOp(
+        bytes memory verifierParams,
+        bytes memory proof,
+        uint256 extensionId,
         bytes memory extensionParams
-    ) external onlyEntry {
-        emailNullifiers[callCtx.headerHash] = true;
-        IExtension extension = getExtension(callCtx.extensionId);
+    ) public {
+        validateUserOpAddition(
+            verifierParams,
+            proof,
+            extensionId,
+            extensionParams
+        );
+        ICore core = ICore(coreAddr);
+        IVerifier verifier = IVerifier(verifierAddr);
+        (
+            IVerifier.SenderPublicInput memory senderPublicInput,
+            bytes memory remainingVerifierParams
+        ) = abi.decode(verifierParams, (IVerifier.SenderPublicInput, bytes));
+        (, bytes memory remainingProof) = abi.decode(proof, (bytes, bytes));
+        ICore.AccountData memory fromAccountData = core.getAccountData(
+            address(this)
+        );
+        /// 1. Store fromEmailNullifier.
+        emailNullifiers[senderPublicInput.fromEmailNullifier] = true;
+
+        /// 2. If nonce==0, store `psiPoint`.
+        if (nonce == 0) {
+            (
+                IVerifier.PsiPublicInput memory psiPublicInput,
+                bytes memory _remainingVerifierParams
+            ) = abi.decode(
+                    remainingVerifierParams,
+                    (IVerifier.PsiPublicInput, bytes)
+                );
+            remainingVerifierParams = _remainingVerifierParams;
+            core.registerPsiPoint(psiPublicInput.psiPoint);
+        }
+
+        address subjectAccountAddr = address(0);
+        /// 3. Process when `isSubjectAddrNull==false`.
+        if (!senderPublicInput.isSubjectAddrNull) {
+            (IVerifier.RecipientPublicInput memory recipientPublicInput, ) = abi
+                .decode(
+                    remainingVerifierParams,
+                    (IVerifier.RecipientPublicInput, bytes)
+                );
+            subjectAccountAddr = core.getAccountOfSalt(
+                recipientPublicInput.subjectSalt
+            );
+            if (subjectAccountAddr == address(0)) {
+                /// [TODO] Fix a logic to decide `pubKey` provided to `registerNewAccount`.
+                core.registerNewAccount(
+                    senderPublicInput.pubKey,
+                    recipientPublicInput.subjectSalt
+                );
+                subjectAccountAddr = core.getAccountOfSalt(
+                    recipientPublicInput.subjectSalt
+                );
+            }
+            // IAccount subjectAccount = IAccount(subjectAccountAddr);
+            /// [TODO] Add senderPublicInput.subjectEmailNullifier to the storage of subjectAccount.
+        }
+
+        /// 4. Call an extension contract.
+        address extensionAddr = extensionAddrOfId[extensionId];
+        IExtension extension = IExtension(extensionAddr);
+        IExtension.CallContext memory callCtx = IExtension.CallContext(
+            extensionId,
+            senderPublicInput.fromEmailNullifier,
+            subjectAccountAddr
+        );
         IExtension.ForwardContext memory forwardCtx = IExtension.ForwardContext(
             false,
             0
@@ -122,25 +341,12 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         } else {
             extension.execute(callCtx, forwardCtx, extensionParams);
         }
-        // IExtension.CallType calltype = extension.getCallType();
-        // if (calltype == IExtension.CallType.Call) {
-        //     extension.execute(subjectAddr, extensionParams);
-        // } else if (calltype == IExtension.CallType.DelegateCall) {
-        //     (bool success, bytes memory returnData) = address(extension)
-        //         .delegatecall(
-        //             abi.encodeWithSignature(
-        //                 "execute(address,bytes)",
-        //                 subjectAddr,
-        //                 extensionParams
-        //             )
-        //         );
-        //     if (!success) {
-        //         if (returnData.length == 0) revert();
-        //         assembly {
-        //             revert(add(32, returnData), mload(returnData))
-        //         }
-        //     }
-        // }
+    }
+
+    function isExtensionInstalled(
+        uint extensionId
+    ) external view returns (bool) {
+        return extensionAddrOfId[extensionId] != address(0);
     }
 
     function forwardCall(
@@ -157,7 +363,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             forwardPermissions[callerExtensionId][calleeExtensionId],
             "Not permitted forward"
         );
-        address calleeAddr = extensionOfId[calleeExtensionId];
+        address calleeAddr = extensionAddrOfId[calleeExtensionId];
         require(calleeAddr != address(0), "Not registered calleeExtensionId");
         IExtension.ForwardContext memory forwardCtx = IExtension.ForwardContext(
             true,
@@ -176,9 +382,13 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         }
     }
 
-    function changeVerifier(address newVerifier) external onlySelf {
+    function upgradeAccountLogic(address newLogic) public onlySelf {
+        /// [TODO] Upgrade the account logic.
+    }
+
+    function changeVerifier(address newVerifier) public onlySelf {
         require(newVerifier != address(0), "newVerifier is not zero address.");
-        verifier = newVerifier;
+        verifierAddr = newVerifier;
     }
 
     function changeExtension(
@@ -189,13 +399,13 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             extensionAddr != address(0),
             "extensionAddr is not zero address."
         );
-        extensionOfId[extensionId] = extensionAddr;
+        extensionAddrOfId[extensionId] = extensionAddr;
         extensionIdOfAddr[extensionAddr] = extensionId;
     }
 
-    function changeEntry(address newEntry) external onlySelf {
-        require(newEntry != address(0), "newEntry is not zero address.");
-        entry = newEntry;
+    function changeRelayer(address newRelayer) public onlySelf {
+        require(newRelayer != address(0), "newRelayer is not zero address.");
+        /// [TODO] We have to implement a function that verifies `transportProof` and then calls `changeRelayer`.
     }
 
     function addPermission(uint256 fromId, uint256 toId) external onlySelf {
