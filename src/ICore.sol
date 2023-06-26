@@ -29,6 +29,7 @@ interface ICore {
     function getAccountOfSalt(bytes32 salt) external view returns (address);
 
     /// Given an email nullifier, return the corresponding account contract address.
+    /// [TODO] Each account contract also stores emailNullifiers. How can we sync them efficiently?
     function getAccountOfEmailNullifier(
         bytes32 emailNullifier
     ) external view returns (address);

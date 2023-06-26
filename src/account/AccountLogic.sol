@@ -288,6 +288,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             remainingVerifierParams = _remainingVerifierParams;
             core.registerPsiPoint(psiPublicInput.psiPoint);
         }
+        nonce++;
 
         address subjectAccountAddr = address(0);
         /// 3. Process when `isSubjectAddrNull==false`.
