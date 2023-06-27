@@ -40,11 +40,14 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
     function initialize(address _relayer) public initializer {
         require(_relayer != address(0), "_relayer must not be zero address");
         ICore core = ICore(msg.sender);
+        require(
+            core.isRegisteredAccount(address(this)),
+            "Not registered account."
+        );
         ICore.AccountData memory accountData = core.getAccountData(
             address(this)
         );
         uint256[] memory initExtensionIds = core.initExtensionIds();
-        require(accountData.pubKey.length > 0, "Not registered account");
         nonce = 0;
         accountLogicAddr = accountData.initAccountLogic;
         verifierAddr = accountData.initVerifier;
@@ -54,7 +57,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
                 accountData.initExtensions[idx]
             );
         }
-        require(accountData.relayer == _relayer);
+        require(accountData.relayer == _relayer, "_relayer is invalid.");
         coreAddr = msg.sender;
     }
 
@@ -91,6 +94,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
     function validateUserOp(
         bytes memory verifierParams,
         bytes memory proof,
+        uint256 extensionId,
         bytes memory extensionParams
     ) public view {
         ICore core = ICore(coreAddr);
@@ -140,25 +144,8 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             "pubKey is invalid."
         );
         /// [TODO] Verify `paymaster==relayer`.
-    }
 
-    function validateUserOpAddition(
-        bytes memory verifierParams,
-        bytes memory proof,
-        uint256 extensionId,
-        bytes memory extensionParams
-    ) public view {
-        ICore core = ICore(coreAddr);
-        IVerifier verifier = IVerifier(verifierAddr);
-        (
-            IVerifier.SenderPublicInput memory senderPublicInput,
-            bytes memory remainingVerifierParams
-        ) = abi.decode(verifierParams, (IVerifier.SenderPublicInput, bytes));
-        (, bytes memory remainingProof) = abi.decode(proof, (bytes, bytes));
-        ICore.AccountData memory fromAccountData = core.getAccountData(
-            address(this)
-        );
-        /// subject check.
+        /// 3. Check the subject.
         address extensionAddr = extensionAddrOfId[extensionId];
         require(extensionAddr != address(0), "extensionId is not registered.");
         IExtension extension = IExtension(extensionAddr);
@@ -174,7 +161,7 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             "The subject is not equal to the expected one."
         );
 
-        /// If nonce==0, verify `psiProof`.
+        /// 4. If nonce==0, verify `psiProof`.
         if (nonce == 0) {
             (
                 IVerifier.PsiPublicInput memory psiPublicInput,
@@ -201,17 +188,9 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
                 psiPublicInput.relayerHash == fromAccountData.relayerHash,
                 "relayerHash is invalid."
             );
-            require(
-                !core.isRegisteredPsiPoint(
-                    fromAccountData.relayer,
-                    psiPublicInput.psiPoint
-                ),
-                "psiPoint is already registered."
-            );
-            // core.registerPsiPoint(relayer,psiPublicInput.psiPoint);
         }
 
-        /// Verify the recipient proof if necessary.
+        /// 5. Verify that the same `subjectAddrCommit` is used in the recipient proof if necessary.
         if (!senderPublicInput.isSubjectAddrNull) {
             (IVerifier.RecipientPublicInput memory recipientPublicInput, ) = abi
                 .decode(
@@ -223,32 +202,47 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
                 (bytes, bytes)
             );
             require(
-                verifier.verifyRecipientProof(
-                    recipientPublicInput,
-                    recipientProof
-                ),
-                "recipientProof is invalid."
-            );
-            require(
                 senderPublicInput.subjectAddrCommit ==
                     recipientPublicInput.subjectAddrCommit,
                 "subjectAddrCommit is invalid."
             );
-            address subjectAccountAddr = core.getAccountOfSalt(
-                recipientPublicInput.subjectSalt
-            );
-            bytes32 expectedRelayerHash = fromAccountData.relayerHash;
-            if (subjectAccountAddr != address(0)) {
-                IAccount subjectAccount = IAccount(subjectAccountAddr);
-                ICore.AccountData memory subjectAccountData = core
-                    .getAccountData(subjectAccountAddr);
-                expectedRelayerHash = subjectAccountData.relayerHash;
-            }
-            require(
-                recipientPublicInput.subjectRelayerHash == expectedRelayerHash,
-                "subjectRelayerHash is invalid."
-            );
         }
+    }
+
+    function processRecipientProof(
+        IVerifier.RecipientPublicInput memory recipientPublicInput,
+        bytes memory recipientProof,
+        bytes32 subjectEmailNullifier
+    ) public {
+        ICore core = ICore(coreAddr);
+        require(
+            core.isRegisteredAccount(msg.sender),
+            "Not registered account."
+        );
+        IVerifier verifier = IVerifier(verifierAddr);
+        require(
+            verifier.verifyRecipientProof(recipientPublicInput, recipientProof),
+            "recipientProof is invalid."
+        );
+        /// [TODO] The following process does not work when this account is registered on-chain but not deployed.
+        /// It requires the core contract to store the subjectEmailNullifier of the non-deployed accounts.
+        ICore.AccountData memory subjectAccountData = core.getAccountData(
+            address(this)
+        );
+        require(
+            recipientPublicInput.subjectSalt == subjectAccountData.salt,
+            "subjectSalt is invalid."
+        );
+        require(
+            recipientPublicInput.subjectRelayerHash ==
+                subjectAccountData.relayerHash,
+            "subjectRelayerHash is invalid."
+        );
+        require(
+            !emailNullifiers[subjectEmailNullifier],
+            "subjectEmailNullifier is already used."
+        );
+        emailNullifiers[subjectEmailNullifier] = true;
     }
 
     function executeUserOp(
@@ -257,12 +251,6 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         uint256 extensionId,
         bytes memory extensionParams
     ) public {
-        validateUserOpAddition(
-            verifierParams,
-            proof,
-            extensionId,
-            extensionParams
-        );
         ICore core = ICore(coreAddr);
         IVerifier verifier = IVerifier(verifierAddr);
         (
@@ -286,6 +274,18 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
                     (IVerifier.PsiPublicInput, bytes)
                 );
             remainingVerifierParams = _remainingVerifierParams;
+            (bytes memory psiProof, bytes memory _remainingProof) = abi.decode(
+                remainingProof,
+                (bytes, bytes)
+            );
+            remainingProof = _remainingProof;
+            require(
+                !core.isRegisteredPsiPoint(
+                    fromAccountData.relayer,
+                    psiPublicInput.psiPoint
+                ),
+                "psiPoint is already registered."
+            );
             core.registerPsiPoint(psiPublicInput.psiPoint);
         }
         nonce++;
@@ -301,6 +301,10 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
             subjectAccountAddr = core.getAccountOfSalt(
                 recipientPublicInput.subjectSalt
             );
+            (bytes memory recipientProof, ) = abi.decode(
+                remainingProof,
+                (bytes, bytes)
+            );
             if (subjectAccountAddr == address(0)) {
                 /// [TODO] Fix a logic to decide `pubKey` provided to `registerNewAccount`.
                 core.registerNewAccount(
@@ -311,8 +315,12 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
                     recipientPublicInput.subjectSalt
                 );
             }
-            // IAccount subjectAccount = IAccount(subjectAccountAddr);
-            /// [TODO] Add senderPublicInput.subjectEmailNullifier to the storage of subjectAccount.
+            IAccount subjectAccount = IAccount(subjectAccountAddr);
+            subjectAccount.processRecipientProof(
+                recipientPublicInput,
+                recipientProof,
+                senderPublicInput.subjectEmailNullifier
+            );
         }
 
         /// 4. Call an extension contract.
@@ -402,11 +410,6 @@ contract AccountLogic is IAccount, AccountStorage, Initializable {
         );
         extensionAddrOfId[extensionId] = extensionAddr;
         extensionIdOfAddr[extensionAddr] = extensionId;
-    }
-
-    function changeRelayer(address newRelayer) public onlySelf {
-        require(newRelayer != address(0), "newRelayer is not zero address.");
-        /// [TODO] We have to implement a function that verifies `transportProof` and then calls `changeRelayer`.
     }
 
     function addPermission(uint256 fromId, uint256 toId) external onlySelf {

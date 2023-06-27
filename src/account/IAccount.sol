@@ -37,17 +37,17 @@ interface IAccount {
     function validateUserOp(
         bytes memory verifierParams,
         bytes memory proof,
-        bytes memory extensionParams
-    ) external view;
-
-    /// This function also verifies `UserOp` but is called in the `executeUserOp` function.
-    /// This is because 1) it needs to access to the storage of the `subjectAccount` and 2) `validateUserOp` is enought to prevent a malicious relayer from stealing fees by forging transactions.
-    function validateUserOpAddition(
-        bytes memory verifierParams,
-        bytes memory proof,
         uint256 extensionId,
         bytes memory extensionParams
     ) external view;
+
+    /// This function verifies and processes the given proof of the recipient circuit.
+    /// It is called in the `executeUserOp` function because 1) it needs to access to the storage of the `subjectAccount` and 2) `validateUserOp` is enought to prevent a malicious relayer from stealing fees by forging transactions.
+    function processRecipientProof(
+        IVerifier.RecipientPublicInput memory recipientPublicInput,
+        bytes memory recipientProof,
+        bytes32 subjectEmailNullifier
+    ) external;
 
     /// A bundler in EIP4337 calls this function to execute `UserOp`. It internally calls `validateUserOpAddition` function.
     function executeUserOp(
@@ -71,9 +71,6 @@ interface IAccount {
 
     /// Only the extension-manager extension contract can call this function to change the registered extension contract.
     function changeExtension(uint extensionId, address extensionAddr) external;
-
-    /// This function assumes there is a function that any relayer can call to transport this account contract as long as they has a valid proof.
-    function changeRelayer(address newRelayer) external;
 
     /// Only the extension-manager extension contract can call this function to add permissions when the user installs a new extension.
     function addPermission(uint256 fromId, uint256 toId) external;

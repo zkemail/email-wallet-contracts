@@ -9,7 +9,8 @@ import "./utils/Constants.sol";
 
 interface ICore {
     /// Account functions.
-    /// We separate them from an account contract to prevent a malicious account logic from modifying them.
+
+    /// Account data. We separate them from an account contract to prevent a malicious account logic from modifying them.
     struct AccountData {
         bytes pubKey;
         bytes32 salt;
@@ -39,6 +40,9 @@ interface ICore {
         address account
     ) external view returns (AccountData memory);
 
+    /// Return true if the given address is a registered account contract and false otherwise.
+    function isRegisteredAccount(address account) external view returns (bool);
+
     /// A bundler calls this function to deploy an account contract.
     function createAccount(address account) external;
 
@@ -61,7 +65,17 @@ interface ICore {
         bytes32 initDepositEmailNullifier
     ) external;
 
+    /// Any relayer can call this function to transport the account to the caller relayer.
+    /// It must verify a proof of the sender and transport circuit.
+    function transportAccount(
+        address accountAddr,
+        bytes memory params,
+        bytes memory proof
+    ) external;
+
     /// Relayer functions.
+
+    /// Relayer configuration.
     struct RelayerConfigData {
         address[] supportedAccountLogicList;
         address[] supportedVerifierList;
@@ -104,13 +118,17 @@ interface ICore {
         bytes32 indexed addrCommit
     );
 
+    /// Given a relayer address and bytes of the PSI point, return true if that point is registered and false otherwise.
     function isRegisteredPsiPoint(
         address relayer,
         bytes calldata psiPoint
     ) external view returns (bool);
 
+    /// Only a relayer can call this function to register a new PSI point of the registered account.
     function registerPsiPoint(bytes calldata psiPoint) external;
 
+    /// Only a relayer can call this function to query a PSI point.
+    /// [NOTE] This function must take some fees from the relayer (msg.sender) to prevent a DoS scanning attack.
     function queryPsiPoint(bytes calldata psiPoint) external;
 
     // function getAccountLogicOfNonRegisteredUser(
