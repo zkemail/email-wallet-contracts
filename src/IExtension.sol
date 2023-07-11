@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
-import "../verifier/IVerifier.sol";
 
 interface IExtension {
     event Executed(
@@ -15,16 +14,16 @@ interface IExtension {
         string regexDefOfString;
     }
 
-    struct CallContext {
-        uint256 extensionId;
-        bytes32 fromEmailNullifier;
-        address subjectAddr;
-    }
+    // struct CallContext {
+    //     uint256 extensionId;
+    //     bytes32 fromEmailNullifier;
+    //     address subjectAddr;
+    // }
 
-    struct ForwardContext {
-        bool isForwarded;
-        uint256 forwarderId;
-    }
+    // struct ForwardContext {
+    //     bool isForwarded;
+    //     uint256 forwarderId;
+    // }
 
     function commandName() external pure returns (string memory);
 
@@ -38,22 +37,22 @@ interface IExtension {
         pure
         returns (DecomposedRegex[] memory);
 
-    function permissionRequests() external pure returns (uint256[] memory);
+    // function permissionRequests() external pure returns (uint256[] memory);
 
-    function query(
-        address accountAddr,
-        bytes memory queryData
-    ) external view returns (string memory);
+    // function query(
+    //     address accountAddr,
+    //     bytes memory queryData
+    // ) external view returns (string memory);
 
-    function buildSubject(
+    function buildValidationParams(
         bytes memory extensionParams
     ) external pure returns (string memory);
 
-    function execute(
-        CallContext memory callCtx,
-        ForwardContext memory forwardCtx,
-        bytes memory extensionParams
-    ) external;
+    // function execute(
+    //     CallContext memory callCtx,
+    //     ForwardContext memory forwardCtx,
+    //     bytes memory extensionParams
+    // ) external;
 
     // function install(
     //     address subjectAddr,
