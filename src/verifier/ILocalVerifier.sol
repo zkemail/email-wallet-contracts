@@ -13,6 +13,15 @@ interface ILocalVerifier {
         bytes memory proof
     ) external view returns (bool);
 
+    function verifyWalletProof(
+        bytes32 senderEmailAddrCommit,
+        bytes32 recipientEmailAddrCommit,
+        bytes32 cvkCommit,
+        uint randomNonce,
+        bytes32 walletSalt,
+        bytes memory proof
+    ) external view returns (bool);
+
     // struct PointersPublicInput {
     //     bytes32 relayerHash;
     //     bytes32 viewingKeyCommit;

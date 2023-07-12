@@ -14,9 +14,28 @@ import "./PendingValues.sol";
 // import "./utils/Create2.sol";
 // import "./utils/Constants.sol";
 
-contract Core is PendingValues, EmailOp {
+contract Core is EmailOp {
     constructor(
         address _globalVerifier,
         uint _verifierListUpdateFrequency
     ) EmailOp(_globalVerifier, _verifierListUpdateFrequency) {}
+
+    function processBundle(
+        ProcessPendingValueParams[] memory processPendingValueParams,
+        EmailOperation[] memory emailOps
+    ) public {
+        require(relayers[msg.sender], "relayer not registered");
+        for (uint i = 0; i < processPendingValueParams.length; i++) {
+            _processPendingValue(processPendingValueParams[i]);
+        }
+        for (uint i = 0; i < emailOps.length; i++) {
+            _validateEmailOp(emailOps[i]);
+        }
+        for (uint i = 0; i < emailOps.length; i++) {
+            uint256 startGas = gasleft();
+            _executeEmailOp(emailOps[i]);
+            uint256 gasUsed = startGas - gasleft();
+            /// [TODO] Gas payment.
+        }
+    }
 }

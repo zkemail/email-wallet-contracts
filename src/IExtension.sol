@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
+import "./Wallets.sol";
 
 interface IExtension {
     event Executed(
@@ -12,6 +13,19 @@ interface IExtension {
         bool isPublic;
         string typeName;
         string regexDefOfString;
+    }
+
+    struct ExtValidationParams {
+        string expectedSubject;
+        Wallets.TransferRequest transferRequest;
+        bool getSenderAnonMap;
+        bool getRecipientAnonMap;
+    }
+
+    struct ExtResult {
+        Wallets.TransferRequest transferRequest;
+        bytes senderAnonMapNewValue;
+        bytes recipientAnonMapNewValue;
     }
 
     // struct CallContext {
@@ -46,7 +60,14 @@ interface IExtension {
 
     function buildValidationParams(
         bytes memory extensionParams
-    ) external pure returns (string memory);
+    ) external pure returns (ExtValidationParams memory);
+
+    function execute(
+        bytes memory extensionParams,
+        Wallets.TransferRequest memory transferRequest,
+        bytes memory senderAnonMapValue,
+        bytes memory recipientAnonMapValue
+    ) external returns (ExtResult memory);
 
     // function execute(
     //     CallContext memory callCtx,

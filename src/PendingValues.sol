@@ -7,43 +7,51 @@ import "./verifier/IGlobalVerifier.sol";
 
 contract PendingValues {
     /// Pending functions.
+    address[] public pendingAnonMaps;
     bytes32[] public pendingViewingKeyCommits;
     bytes[] public pendingOldValues;
     bytes[] public pendingNewValues;
 
+    struct ProcessPendingValueParams {
+        bytes32 newValuesRoot;
+        bytes32 newNullifierRoot;
+        bytes32 valueCommit;
+        bytes32 nullifier;
+        bytes insertProof;
+        bytes removeProof;
+    }
+
     function _addPendingValue(
+        address anonMap,
         bytes32 viewingKey,
         bytes memory oldValue,
         bytes memory newValue
     ) internal {
+        pendingAnonMaps.push(anonMap);
         pendingViewingKeyCommits.push(viewingKey);
         pendingOldValues.push(oldValue);
         pendingNewValues.push(newValue);
     }
 
     function _processPendingValue(
-        AnonMap anonMap,
-        bytes32 newValuesRoot,
-        bytes32 newNullifierRoot,
-        bytes32 valueCommit,
-        bytes32 nullifier,
-        bytes memory insertProof,
-        bytes memory removeProof
+        ProcessPendingValueParams memory params
     ) internal {
+        AnonMap anonMap = AnonMap(pendingAnonMaps[0]);
         anonMap.insert(
-            newValuesRoot,
+            params.newValuesRoot,
             pendingViewingKeyCommits[0],
-            valueCommit,
+            params.valueCommit,
             pendingNewValues[0],
-            insertProof
+            params.insertProof
         );
         anonMap.remove(
-            newNullifierRoot,
+            params.newNullifierRoot,
             pendingViewingKeyCommits[0],
-            nullifier,
+            params.nullifier,
             pendingOldValues[0],
-            removeProof
+            params.removeProof
         );
+        pendingAnonMaps.pop();
         pendingViewingKeyCommits.pop();
         pendingOldValues.pop();
         pendingNewValues.pop();

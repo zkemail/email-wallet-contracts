@@ -13,12 +13,13 @@ pragma solidity ^0.8.0;
  * information.
  */
 library Constants {
-    string public constant WALLET_EXTENSION_COMMAND = "wallet";
-    uint256 public constant WALLET_EXTENSION_ID = 0;
-    string public constant CONFIG_EXTENSION_COMMAND = "config";
-    uint256 public constant CONFIG_EXTENSION_ID = 1;
-    string public constant EXT_EXTENSION_COMMAND = "ext";
-    uint256 public constant EXT_EXTENSION_ID = 2;
-    string public constant TRANSPORT_EXTENSION_COMMAND = "transport";
-    uint256 public constant TRANSPORT_EXTENSION_ID = 3;
+    string public constant SUBJECT_PREFIX = "Email ";
+    string public constant WALLET_COMMAND = "wallet";
+    // uint256 public constant WALLET_EXTENSION_ID = 0;
+    // string public constant CONFIG_EXTENSION_COMMAND = "config";
+    // uint256 public constant CONFIG_EXTENSION_ID = 1;
+    // string public constant EXT_EXTENSION_COMMAND = "ext";
+    // uint256 public constant EXT_EXTENSION_ID = 2;
+    // string public constant TRANSPORT_EXTENSION_COMMAND = "transport";
+    // uint256 public constant TRANSPORT_EXTENSION_ID = 3;
 }

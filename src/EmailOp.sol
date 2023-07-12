@@ -7,12 +7,16 @@ import "./verifier/IGlobalVerifier.sol";
 import "./verifier/ILocalVerifier.sol";
 import "./ViewingKeysMap.sol";
 import "./Relayers.sol";
+import "./Wallets.sol";
+import "./IExtension.sol";
+import "./PendingValues.sol";
 
-contract EmailOp is Relayers {
+contract EmailOp is Relayers, Wallets, PendingValues {
     address public verifierMap;
-    mapping(string => address) public extensionsMap;
+    mapping(string => address) public extensionAddrOfCommandMap;
     mapping(bytes32 => bool) public emailNullifiers;
     mapping(bytes32 => bytes32) public pubkeyHashOfDomainHash;
+    mapping(string => address) public extensionAnonMapOfCommand;
 
     constructor(
         address _globalVerifier,
@@ -21,7 +25,6 @@ contract EmailOp is Relayers {
         verifierMap = address(new AnonMap(globalVerifier));
     }
 
-    /// Account functions.
     struct EmailOperation {
         address recipientRelayer;
         /// commitments
@@ -29,20 +32,18 @@ contract EmailOp is Relayers {
         bytes32 recipientEmailAddrCommit;
         bytes32 senderSvkCommit;
         bytes32 recipientSvkCommit;
-        bytes cvkCommit;
-        /// Viewing key inclusion proof for the sender's svk.
+        // bytes cvkCommit;
+        /// viewing key inclusion proof for the sender's svk.
         bytes senderSvkInclusionProof;
-        /// Viewing key inclusion proof for the recipient's svk.
+        /// viewing key inclusion proof for the recipient's svk.
         bytes recipientSvkInclusionProof;
-        /// Viewing key inclusion proof for the sender's cvk.
+        /// viewing key inclusion proof for the sender's cvk.
         // bytes cvkInclusionProof;
-        /// Verifier address inclusion proof.
+        /// verifier address inclusion proof.
         address verifier;
         bytes verifierInclusionProof;
-        /// Extension address inclusion proof.
-        string extensionCommand;
-        address extension;
-        bytes extensionInclusionProof;
+        /// command name.
+        string command;
         /// email proof
         bytes32 emailNullifier;
         bytes32 pubKeyHash;
@@ -50,12 +51,42 @@ contract EmailOp is Relayers {
         string maskedSubjectStr;
         bool isSubjectAddrNull;
         bytes emailProof;
+        /// wallet
+        bytes walletProofs;
+        uint transferAmount;
+        string tokenName;
+        /// extension
+        bytes extensionParamsAndProof;
     }
 
-    function _validateEmailOp(
-        EmailOperation memory emailOp
-    ) internal view returns (bool) {
-        require(relayers[msg.sender], "relayer not registered");
+    struct SenderWalletProof {
+        bytes32 cvkCommit;
+        bytes32 oldSenderEmailAddrCommit;
+        bytes cvkInclusionProof;
+        uint randomNonce;
+        bytes32 walletSalt;
+        bytes proof;
+    }
+
+    struct RecipientWalletProof {
+        bytes32 cvkCommit;
+        bytes cvkInclusionProof;
+        uint randomNonce;
+        bytes32 walletSalt;
+        bytes proof;
+    }
+
+    struct ExtensionParamsAndProof {
+        address extension;
+        bytes extensionAddrInclusionProof;
+        bytes extensionParams;
+        bytes senderAnonMapValue;
+        bytes senderAnonMapInclusionProof;
+        bytes recipientAnonMapValue;
+        bytes recipientAnonMapInclusionProof;
+    }
+
+    function _validateEmailOp(EmailOperation memory emailOp) internal view {
         /// Check self viewing keys.
         require(
             emailOp.verifier != address(0),
@@ -109,7 +140,8 @@ contract EmailOp is Relayers {
             ),
             "invalid recipient's svk inclusion proof."
         );
-        /// Check verifier and extension addresses.
+
+        /// Check verifier addresses.
         AnonMap verifierMap = AnonMap(verifierMap);
         require(
             emailOp.verifier != address(0),
@@ -122,21 +154,6 @@ contract EmailOp is Relayers {
                 emailOp.verifierInclusionProof
             ),
             "invalid verifier inclusion proof"
-        );
-        require(
-            emailOp.extension != address(0),
-            "extension must not be zero address"
-        );
-        address extensionMapAddr = extensionsMap[emailOp.extensionCommand];
-        require(extensionMapAddr != address(0), "extension does not exist");
-        AnonMap extensionMap = AnonMap(extensionMapAddr);
-        require(
-            extensionMap.isStored(
-                emailOp.senderSvkCommit,
-                abi.encodePacked(emailOp.extension),
-                emailOp.extensionInclusionProof
-            ),
-            "invalid extension inclusion proof"
         );
 
         /// Check email proof.
@@ -162,271 +179,196 @@ contract EmailOp is Relayers {
             ),
             "invalid email proof"
         );
+
+        /// Check wallet proofs.
+        if (emailOp.walletProofs.length != 0) {
+            (
+                SenderWalletProof[] memory senderWalletProofs,
+                RecipientWalletProof memory recipientWalletProof
+            ) = abi.decode(
+                    emailOp.walletProofs,
+                    (SenderWalletProof[], RecipientWalletProof)
+                );
+            for (uint i = 0; i < senderWalletProofs.length; i++) {
+                require(
+                    localVerifier.verifyWalletProof(
+                        senderWalletProofs[i].oldSenderEmailAddrCommit,
+                        emailOp.recipientEmailAddrCommit,
+                        senderWalletProofs[i].cvkCommit,
+                        senderWalletProofs[i].randomNonce,
+                        senderWalletProofs[i].walletSalt,
+                        senderWalletProofs[i].proof
+                    )
+                );
+            }
+            require(
+                localVerifier.verifyWalletProof(
+                    emailOp.senderEmailAddrCommit,
+                    emailOp.recipientEmailAddrCommit,
+                    recipientWalletProof.cvkCommit,
+                    recipientWalletProof.randomNonce,
+                    recipientWalletProof.walletSalt,
+                    recipientWalletProof.proof
+                )
+            );
+            /// [TODO] Check the token name.
+            /// [TODO] Check the balance sum >= transfer amount.
+        }
+
+        /// Check extension params and proof.
+        if (
+            keccak256(bytes(emailOp.command)) !=
+            keccak256(bytes(Constants.WALLET_COMMAND))
+        ) {
+            ExtensionParamsAndProof memory extensionParamsAndProof = abi.decode(
+                emailOp.extensionParamsAndProof,
+                (ExtensionParamsAndProof)
+            );
+            address extensionAddrMapAddr = extensionAddrOfCommandMap[
+                emailOp.command
+            ];
+            require(
+                extensionAddrMapAddr != address(0),
+                "extension does not exist"
+            );
+            AnonMap extensionAddrMap = AnonMap(extensionAddrMapAddr);
+            require(
+                extensionAddrMap.isStored(
+                    emailOp.senderSvkCommit,
+                    abi.encodePacked(extensionParamsAndProof.extension),
+                    extensionParamsAndProof.extensionAddrInclusionProof
+                ),
+                "invalid extension inclusion proof"
+            );
+            require(
+                extensionParamsAndProof.extension != address(0),
+                "extension must not be zero address"
+            );
+            IExtension extension = IExtension(
+                extensionParamsAndProof.extension
+            );
+            IExtension.ExtValidationParams
+                memory extValidationParams = extension.buildValidationParams(
+                    extensionParamsAndProof.extensionParams
+                );
+            /// Check subject string.
+            string memory subjectExpected = string.concat(
+                Constants.SUBJECT_PREFIX,
+                extension.commandName(),
+                ": ",
+                extValidationParams.expectedSubject
+            );
+            require(
+                keccak256(bytes(emailOp.maskedSubjectStr)) ==
+                    keccak256(bytes(subjectExpected)),
+                "invalid subject string"
+            );
+            /// Check sender's and recipient's values in the anon map.
+            address anonMapAddr = extensionAnonMapOfCommand[emailOp.command];
+            require(anonMapAddr != address(0), "anon map does not exist");
+            AnonMap anonMap = AnonMap(anonMapAddr);
+            if (extValidationParams.getSenderAnonMap) {
+                require(
+                    extensionParamsAndProof.senderAnonMapValue.length != 0,
+                    "sender anon map value must not be empty"
+                );
+                require(
+                    anonMap.isStored(
+                        emailOp.senderSvkCommit,
+                        extensionParamsAndProof.senderAnonMapValue,
+                        extensionParamsAndProof.senderAnonMapInclusionProof
+                    ),
+                    "invalid sender anon map inclusion proof"
+                );
+            }
+            if (extValidationParams.getRecipientAnonMap) {
+                require(
+                    extensionParamsAndProof.recipientAnonMapValue.length != 0,
+                    "recipient anon map value must not be empty"
+                );
+                require(
+                    anonMap.isStored(
+                        emailOp.recipientSvkCommit,
+                        extensionParamsAndProof.recipientAnonMapValue,
+                        extensionParamsAndProof.recipientAnonMapInclusionProof
+                    ),
+                    "invalid recipient anon map inclusion proof"
+                );
+            }
+        }
     }
 
-    /// Account functions.
-    // function validateEmailOpBeforeCharge(
-    //     EmailOperation memory emailOp
-    // ) private view returns (bool) {
-    //     require(
-    //         emailNullifiers[emailOp.emailNullifier] == false,
-    //         "email nullifier already used"
-    //     );
-    //     require(
-    //         emailOp.verifier != address(0),
-    //         "verifier must not be zero address"
-    //     );
-    //     require(relayers[msg.sender], "relayer not registered");
-    //     RelayerConfig relayerConfig = relayerConfigs[msg.sender];
-    //     IGlobalVerifier globalVerifier = IGlobalVerifier(globalVerifier);
-    //     AnonMap pointersMap = AnonMultiset(
-    //         relayerConfig.viewingKeyPointersMap
-    //     );
-    //     require(
-    //         globalVerifier.verifyPointerInclusionProof(
-    //             pointersMap.valuesCommitment(),
-    //             pointersMap.nullifiersCommitment(),
-    //             relayerConfig.relayerHash,
-    //             relayerConfig.nonce,
-    //             emailOp.senderSvkIndicator,
-    //             emailOp.senderEmailAddrCommit,
-    //             bytes32(0),
-    //             emailOp.senderSvkPointersProof
-    //         ),
-    //         "invalid pointer inclusion proof"
-    //     );
-    //     if (emailOp.senderCvkIndicator != bytes32(0)) {
-    //         require(
-    //             globalVerifier.verifyPointerInclusionProof(
-    //                 pointersMap.valuesCommitment(),
-    //                 pointersMap.nullifiersCommitment(),
-    //                 relayerConfig.relayerHash,
-    //                 relayerConfig.nonce,
-    //                 emailOp.senderCvkIndicator,
-    //                 emailOp.senderEmailAddrCommit,
-    //                 emailOp.senderCvkPointersProof
-    //             ),
-    //             "invalid pointer inclusion proof"
-    //         );
-    //     }
-    //     RelayerConfig recipientRelayerConfig = relayerConfigs[
-    //         emailOp.recipientRelayer
-    //     ];
-    //     if (emailOp.recipientSvkIndicator != bytes32(0)) {
-    //         require(
-    //             emailOp.recipientRelayer != address(0),
-    //             "recipient relayer must not be zero address"
-    //         );
-    //         require(
-    //             globalVerifier.verifyPointerInclusionProof(
-    //                 pointersMap.valuesCommitment(),
-    //                 pointersMap.nullifiersCommitment(),
-    //                 recipientRelayerConfig.relayerHash,
-    //                 recipientRelayerConfig.nonce,
-    //                 emailOp.recipientSvkIndicator,
-    //                 emailOp.recipientEmailAddrCommit,
-    //                 emailOp.recipientSvkPointersProof
-    //             ),
-    //             "invalid pointer inclusion proof"
-    //         );
-    //         require(
-    //             emailOp.recipientCvkIndicator != bytes32(0),
-    //             "recipient cvk indicator must not be zero"
-    //         );
-    //         require(
-    //             globalVerifier.verifyPointerInclusionProof(
-    //                 pointersMap.valuesCommitment(),
-    //                 pointersMap.nullifiersCommitment(),
-    //                 recipientRelayerConfig.relayerHash,
-    //                 recipientRelayerConfig.nonce,
-    //                 emailOp.recipientCvkIndicator,
-    //                 emailOp.recipientEmailAddrCommit,
-    //                 emailOp.recipientCvkPointersProof
-    //             ),
-    //             "invalid pointer inclusion proof"
-    //         );
-    //     }
-    // }
-
-    // function validateEmailOpAfterCharge(
-    //     EmailOperation memory emailOp
-    // ) private view returns (bool) {
-    //     return true;
-    // }
-
-    /// Account data. We separate them from an account contract to prevent a malicious account logic from modifying them.
-    // struct AccountData {
-    //     bytes pubKey;
-    //     bytes32 salt;
-    //     address relayer;
-    //     bytes32 relayerHash;
-    //     address initAccountLogic;
-    //     address initVerifier;
-    //     address[] initExtensions;
-    //     bytes32 initDepositEmailNullifier;
-    // }
-
-    // /// Extension Ids used to initialize an account contract.
-    // function initExtensionIds() external pure returns (uint256[] calldata);
-
-    // /// Given a salt, return the corresponding account contract address.
-    // /// [Note] The salt does not derive the corresponding address with CREATE2 after the account is transported.
-    // function getAccountOfSalt(bytes32 salt) external view returns (address);
-
-    // /// Given an email nullifier, return the corresponding account contract address.
-    // /// [TODO] Each account contract also stores emailNullifiers. How can we sync them efficiently?
-    // function getAccountOfEmailNullifier(
-    //     bytes32 emailNullifier
-    // ) external view returns (address);
-
-    // /// Given an account contract address, return the corresponding `AccountData`.
-    // function getAccountData(
-    //     address account
-    // ) external view returns (AccountData memory);
-
-    // /// Return true if the given address is a registered account contract and false otherwise.
-    // function isRegisteredAccount(address account) external view returns (bool);
-
-    // /// A bundler calls this function to deploy an account contract.
-    // function createAccount(address account) external;
-
-    // /// An account contract calls this function to register an account contract of the subject email address if it is not deployed yet.
-    // /// It derives a new contract address from `salt` and inherits init contracts from those of msg.sender.
-    // function registerNewAccount(bytes memory pubKey, bytes32 salt) external;
-
-    // /// After calling the approve function of the ERC20 contract, a user who wants to deposit tokens from existing wallets calls this function.
-    // /// If the user's account contract is not deployed, it registers that account.
-    // /// The relayer later submits a proof of the user's deposit email, which depoly the user's account contract.
-    // /// This function requires `initDepositEmailNullifier`, which must be the same as that of that deposit email.
-    // /// `initDepositEmailNullifier` must not be zero.
-    // function deposit(
-    //     address accountAddr,
-    //     bytes memory pubKey,
-    //     address relayer,
-    //     uint256 initAccountLogicIdx,
-    //     address initVerifierIdx,
-    //     address[] memory initExtensionIdxes,
-    //     bytes32 initDepositEmailNullifier
-    // ) external;
-
-    // /// Any relayer can call this function to transport the account to the caller relayer.
-    // /// It must verify a proof of the sender and transport circuit.
-    // function transportAccount(
-    //     address accountAddr,
-    //     bytes memory params,
-    //     bytes memory proof
-    // ) external;
-
-    // /// Relayer functions.
-
-    // /// Relayer configuration.
-    // struct RelayerConfigData {
-    //     address[] supportedAccountLogicList;
-    //     address[] supportedVerifierList;
-    //     address[][] supportedInitExtensionList;
-    //     bytes32 relayerHash;
-    //     string emailAddr;
-    //     uint256 verifierIdxOfPsi;
-    // }
-
-    // /// Given a relayer address, return true if it is a registered relayer and false otherwise.
-    // function isRegisteredRelayer(address relayer) external view returns (bool);
-
-    // /// Given a relayer address, return the corresponding `RelayerConfigData`.
-    // function getConfigOfRelayer(
-    //     address relayer
-    // ) external view returns (RelayerConfigData memory);
-
-    // /// Register a new relayer with the initial `RelayerConfigData`.
-    // function registerRelayer(RelayerConfigData memory configData) external;
-
-    // /// A relayer calls this function to add a new account logic contract to the relayer's `supportedAccountLogicList`.
-    // function addSupportedAccountLogic(address newAccountLogic) external;
-
-    // /// A relayer calls this function to add a new verifier contract to the relayer's `supportedVerifierList`.
-    // function addSupportedVerifier(address newVerifier) external;
-
-    // /// A relayer calls this function to add a new extension contract to the relayer's `supportedInitExtensionList`.
-    // function addSupportedInitExtension(
-    //     uint256 extensionId,
-    //     address newExtension
-    // ) external;
-
-    // /// A relayer calls this function to change the relayer's `verifierIdxOfPsi`.
-    // function changeVerifierIdxOfPsi(uint256 idx) external;
-
-    // /// Private-set intersection (PSI) functions.
-    // event QueryPsiPoint(
-    //     address indexed relayer,
-    //     bytes indexed psiPoint,
-    //     bytes32 indexed addrCommit
-    // );
-
-    // /// Given a relayer address and bytes of the PSI point, return true if that point is registered and false otherwise.
-    // function isRegisteredPsiPoint(
-    //     address relayer,
-    //     bytes calldata psiPoint
-    // ) external view returns (bool);
-
-    // /// Only a relayer can call this function to register a new PSI point of the registered account.
-    // function registerPsiPoint(bytes calldata psiPoint) external;
-
-    // /// Only a relayer can call this function to query a PSI point.
-    // /// [NOTE] This function must take some fees from the relayer (msg.sender) to prevent a DoS scanning attack.
-    // function queryPsiPoint(bytes calldata psiPoint) external;
-
-    // function getAccountLogicOfNonRegisteredUser(
-    //     address accountAddr
-    // ) external view returns (address);
-
-    // function isExportedAccount(
-    //     address accountAddr
-    // ) external view returns (bool);
-
-    // function changeDefaultAccountLogic(address accountLogic) external;
-
-    // function changeDefaultVerifier(address verifierAddress) external;
-
-    // function changeDefaultExtensionOfId(
-    //     uint256 extensionId,
-    //     address extensionAddress
-    // ) external;
-
-    // function simulateVerification(
-    //     bytes32 accountAddrSalt,
-    //     uint extensionId,
-    //     bytes memory verifierParams,
-    //     bytes memory proof,
-    //     bytes memory extensionParams
-    // ) external view;
-
-    // function entry(
-    //     bytes32 accountAddrSalt,
-    //     uint extensionId,
-    //     bytes memory verifierParams,
-    //     bytes memory proof,
-    //     bytes memory extensionParams
-    // ) external;
-
-    // function depositFirst(
-    //     bytes32 accountAddrSalt,
-    //     bytes memory verifierParams,
-    //     bytes memory proof,
-    //     bytes memory extensionParams
-    // ) external;
-
-    // function exportAccount(
-    //     bytes32 accountAddrSalt,
-    //     bytes memory verifierParams,
-    //     bytes memory proof,
-    //     bytes memory extensionParams
-    // ) external;
-
-    // function importAccount(
-    //     bytes32 accountAddrSalt,
-    //     bytes memory verifierParams,
-    //     bytes memory proof,
-    //     bytes memory extensionParams,
-    //     address oldEntryAddr
-    // ) external;
+    function _executeEmailOp(EmailOperation memory emailOp) internal {
+        if (
+            keccak256(bytes(emailOp.command)) ==
+            keccak256(bytes(Constants.WALLET_COMMAND))
+        ) {
+            /// token transfer
+            (
+                SenderWalletProof[] memory senderWalletProofs,
+                RecipientWalletProof memory recipientWalletProof
+            ) = abi.decode(
+                    emailOp.walletProofs,
+                    (SenderWalletProof[], RecipientWalletProof)
+                );
+            /// [TODO] Convert token name to token address.
+            /// [TODO] Construct Wallets.TransferRequest and call _processTransferRequest.
+        } else {
+            /// call extension
+            ExtensionParamsAndProof memory extensionParamsAndProof = abi.decode(
+                emailOp.extensionParamsAndProof,
+                (ExtensionParamsAndProof)
+            );
+            IExtension extension = IExtension(
+                extensionParamsAndProof.extension
+            );
+            IExtension.ExtValidationParams
+                memory extValidationParams = extension.buildValidationParams(
+                    extensionParamsAndProof.extensionParams
+                );
+            if (extValidationParams.transferRequest.amount > 0) {
+                /// [TODO] Convert token name to token address.
+                /// [TODO] Construct Wallets.TransferRequest and call _processTransferRequest (the recipient is `extensionParamsAndProof.extension`).
+            }
+            bytes memory senderAnonMapValue;
+            bytes memory recipientAnonMapValue;
+            if (extValidationParams.getSenderAnonMap) {
+                senderAnonMapValue = extensionParamsAndProof.senderAnonMapValue;
+            }
+            if (extValidationParams.getRecipientAnonMap) {
+                recipientAnonMapValue = extensionParamsAndProof
+                    .recipientAnonMapValue;
+            }
+            IExtension.ExtResult memory extResult = extension.execute(
+                extensionParamsAndProof.extensionParams,
+                extValidationParams.transferRequest,
+                senderAnonMapValue,
+                recipientAnonMapValue
+            );
+            if (extResult.transferRequest.amount > 0) {
+                /// [TODO] Convert token name to token address.
+                /// [TODO] Construct Wallets.TransferRequest and call _processTransferRequest (the recipient is the recipient's wallet.).
+            }
+            if (extResult.senderAnonMapNewValue.length > 0) {
+                require(extensionParamsAndProof.senderAnonMapValue.length > 0);
+                _addPendingValue(
+                    extensionAnonMapOfCommand[emailOp.command],
+                    emailOp.senderSvkCommit,
+                    extensionParamsAndProof.senderAnonMapValue,
+                    extResult.senderAnonMapNewValue
+                );
+            }
+            if (extResult.recipientAnonMapNewValue.length > 0) {
+                require(
+                    extensionParamsAndProof.recipientAnonMapValue.length > 0
+                );
+                _addPendingValue(
+                    extensionAnonMapOfCommand[emailOp.command],
+                    emailOp.recipientSvkCommit,
+                    extensionParamsAndProof.recipientAnonMapValue,
+                    extResult.recipientAnonMapNewValue
+                );
+            }
+        }
+    }
 }
