@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./utils/AnonMap.sol";
 import "./utils/Constants.sol";
 import "./verifier/IGlobalVerifier.sol";
-import "./verifier/ILocalVerifier.sol";
+// import "./verifier/ILocalVerifier.sol";
 import "./ViewingKeysMap.sol";
 import "./Relayers.sol";
 import "./Wallets.sol";
@@ -12,7 +12,7 @@ import "./IExtension.sol";
 import "./PendingValues.sol";
 
 contract EmailOp is Relayers, Wallets, PendingValues {
-    address public verifierMap;
+    // address public verifierMap;
     mapping(string => address) public extensionAddrOfCommandMap;
     mapping(bytes32 => bool) public emailNullifiers;
     mapping(bytes32 => bytes32) public pubkeyHashOfDomainHash;
@@ -22,7 +22,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         address _globalVerifier,
         uint _verifierListUpdateFrequency
     ) Relayers(_globalVerifier, _verifierListUpdateFrequency) {
-        verifierMap = address(new AnonMap(globalVerifier));
+        // verifierMap = address(new AnonMap(globalVerifier));
     }
 
     struct EmailOperation {
@@ -30,18 +30,18 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         /// commitments
         bytes32 senderEmailAddrCommit;
         bytes32 recipientEmailAddrCommit;
-        bytes32 senderSvkCommit;
-        bytes32 recipientSvkCommit;
+        bytes32 senderViewingKeyCommit;
+        bytes32 recipientViewingKeyCommit;
         // bytes cvkCommit;
         /// viewing key inclusion proof for the sender's svk.
-        bytes senderSvkInclusionProof;
+        bytes senderViewingKeyInclusionProof;
         /// viewing key inclusion proof for the recipient's svk.
-        bytes recipientSvkInclusionProof;
+        bytes recipientViewingKeyInclusionProof;
         /// viewing key inclusion proof for the sender's cvk.
         // bytes cvkInclusionProof;
         /// verifier address inclusion proof.
-        address verifier;
-        bytes verifierInclusionProof;
+        // address verifier;
+        // bytes verifierInclusionProof;
         /// command name.
         string command;
         /// email proof
@@ -59,18 +59,10 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         bytes extensionParamsAndProof;
     }
 
-    struct SenderWalletProof {
-        bytes32 cvkCommit;
-        bytes32 oldSenderEmailAddrCommit;
-        bytes cvkInclusionProof;
-        uint randomNonce;
-        bytes32 walletSalt;
-        bytes proof;
-    }
-
-    struct RecipientWalletProof {
-        bytes32 cvkCommit;
-        bytes cvkInclusionProof;
+    struct WalletProof {
+        // bytes32 cvkCommit;
+        // bytes32 oldSenderEmailAddrCommit;
+        // bytes cvkInclusionProof;
         uint randomNonce;
         bytes32 walletSalt;
         bytes proof;
@@ -88,10 +80,10 @@ contract EmailOp is Relayers, Wallets, PendingValues {
 
     function _validateEmailOp(EmailOperation memory emailOp) internal view {
         /// Check self viewing keys.
-        require(
-            emailOp.verifier != address(0),
-            "verifier must not be zero address"
-        );
+        // require(
+        //     emailOp.verifier != address(0),
+        //     "verifier must not be zero address"
+        // );
         IGlobalVerifier globalVerifier = IGlobalVerifier(globalVerifier);
         RelayerConfig memory relayerConfig = relayerConfigs[msg.sender];
         AnonMap viewingKeysMap = AnonMap(relayerConfig.viewingKeysMap);
@@ -101,9 +93,8 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 viewingKeysMap.nullifiersRoot(),
                 relayerConfig.relayerHash,
                 emailOp.senderEmailAddrCommit,
-                emailOp.senderEmailAddrCommit,
-                emailOp.senderSvkCommit,
-                emailOp.senderSvkInclusionProof
+                emailOp.senderViewingKeyCommit,
+                emailOp.senderViewingKeyInclusionProof
             ),
             "invalid sender's svk inclusion proof."
         );
@@ -121,40 +112,27 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                     viewingKeysMap.nullifiersRoot(),
                     recipientRelayerConfig.relayerHash,
                     emailOp.recipientEmailAddrCommit,
-                    emailOp.recipientEmailAddrCommit,
-                    emailOp.recipientSvkCommit,
-                    emailOp.recipientSvkInclusionProof
+                    emailOp.recipientViewingKeyCommit,
+                    emailOp.recipientViewingKeyInclusionProof
                 ),
                 "invalid recipient's svk inclusion proof."
             );
         }
-        require(
-            globalVerifier.verifyViewingKeysMapInclusionProof(
-                viewingKeysMap.valuesRoot(),
-                viewingKeysMap.nullifiersRoot(),
-                relayerConfig.relayerHash,
-                emailOp.recipientEmailAddrCommit,
-                emailOp.recipientEmailAddrCommit,
-                emailOp.recipientSvkCommit,
-                emailOp.recipientSvkInclusionProof
-            ),
-            "invalid recipient's svk inclusion proof."
-        );
 
         /// Check verifier addresses.
-        AnonMap verifierMap = AnonMap(verifierMap);
-        require(
-            emailOp.verifier != address(0),
-            "verifier must not be zero address"
-        );
-        require(
-            verifierMap.isStored(
-                emailOp.senderSvkCommit,
-                abi.encodePacked(emailOp.verifier),
-                emailOp.verifierInclusionProof
-            ),
-            "invalid verifier inclusion proof"
-        );
+        // AnonMap verifierMap = AnonMap(verifierMap);
+        // require(
+        //     emailOp.verifier != address(0),
+        //     "verifier must not be zero address"
+        // );
+        // require(
+        //     verifierMap.isStored(
+        //         emailOp.senderSvkCommit,
+        //         abi.encodePacked(emailOp.verifier),
+        //         emailOp.verifierInclusionProof
+        //     ),
+        //     "invalid verifier inclusion proof"
+        // );
 
         /// Check email proof.
         require(
@@ -165,9 +143,9 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             pubkeyHashOfDomainHash[emailOp.domainHash] == emailOp.pubKeyHash,
             "invalid pubkey hash"
         );
-        ILocalVerifier localVerifier = ILocalVerifier(emailOp.verifier);
+        // ILocalVerifier localVerifier = ILocalVerifier(emailOp.verifier);
         require(
-            localVerifier.verifyEmailProof(
+            globalVerifier.verifyEmailProof(
                 emailOp.senderEmailAddrCommit,
                 emailOp.recipientEmailAddrCommit,
                 emailOp.emailNullifier,
@@ -183,18 +161,13 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         /// Check wallet proofs.
         if (emailOp.walletProofs.length != 0) {
             (
-                SenderWalletProof[] memory senderWalletProofs,
-                RecipientWalletProof memory recipientWalletProof
-            ) = abi.decode(
-                    emailOp.walletProofs,
-                    (SenderWalletProof[], RecipientWalletProof)
-                );
+                WalletProof[] memory senderWalletProofs,
+                WalletProof memory recipientWalletProof
+            ) = abi.decode(emailOp.walletProofs, (WalletProof[], WalletProof));
             for (uint i = 0; i < senderWalletProofs.length; i++) {
                 require(
-                    localVerifier.verifyWalletProof(
-                        senderWalletProofs[i].oldSenderEmailAddrCommit,
-                        emailOp.recipientEmailAddrCommit,
-                        senderWalletProofs[i].cvkCommit,
+                    globalVerifier.verifyWalletProof(
+                        emailOp.senderViewingKeyCommit,
                         senderWalletProofs[i].randomNonce,
                         senderWalletProofs[i].walletSalt,
                         senderWalletProofs[i].proof
@@ -202,10 +175,8 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 );
             }
             require(
-                localVerifier.verifyWalletProof(
-                    emailOp.senderEmailAddrCommit,
-                    emailOp.recipientEmailAddrCommit,
-                    recipientWalletProof.cvkCommit,
+                globalVerifier.verifyWalletProof(
+                    emailOp.recipientViewingKeyCommit,
                     recipientWalletProof.randomNonce,
                     recipientWalletProof.walletSalt,
                     recipientWalletProof.proof
@@ -234,7 +205,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             AnonMap extensionAddrMap = AnonMap(extensionAddrMapAddr);
             require(
                 extensionAddrMap.isStored(
-                    emailOp.senderSvkCommit,
+                    emailOp.senderViewingKeyCommit,
                     abi.encodePacked(extensionParamsAndProof.extension),
                     extensionParamsAndProof.extensionAddrInclusionProof
                 ),
@@ -274,7 +245,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 );
                 require(
                     anonMap.isStored(
-                        emailOp.senderSvkCommit,
+                        emailOp.senderViewingKeyCommit,
                         extensionParamsAndProof.senderAnonMapValue,
                         extensionParamsAndProof.senderAnonMapInclusionProof
                     ),
@@ -288,7 +259,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 );
                 require(
                     anonMap.isStored(
-                        emailOp.recipientSvkCommit,
+                        emailOp.recipientViewingKeyCommit,
                         extensionParamsAndProof.recipientAnonMapValue,
                         extensionParamsAndProof.recipientAnonMapInclusionProof
                     ),
@@ -305,12 +276,9 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         ) {
             /// token transfer
             (
-                SenderWalletProof[] memory senderWalletProofs,
-                RecipientWalletProof memory recipientWalletProof
-            ) = abi.decode(
-                    emailOp.walletProofs,
-                    (SenderWalletProof[], RecipientWalletProof)
-                );
+                WalletProof[] memory senderWalletProofs,
+                WalletProof memory recipientWalletProof
+            ) = abi.decode(emailOp.walletProofs, (WalletProof[], WalletProof));
             /// [TODO] Convert token name to token address.
             /// [TODO] Construct Wallets.TransferRequest and call _processTransferRequest.
         } else {
@@ -353,7 +321,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 require(extensionParamsAndProof.senderAnonMapValue.length > 0);
                 _addPendingValue(
                     extensionAnonMapOfCommand[emailOp.command],
-                    emailOp.senderSvkCommit,
+                    emailOp.senderViewingKeyCommit,
                     extensionParamsAndProof.senderAnonMapValue,
                     extResult.senderAnonMapNewValue
                 );
@@ -364,7 +332,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 );
                 _addPendingValue(
                     extensionAnonMapOfCommand[emailOp.command],
-                    emailOp.recipientSvkCommit,
+                    emailOp.recipientViewingKeyCommit,
                     extensionParamsAndProof.recipientAnonMapValue,
                     extResult.recipientAnonMapNewValue
                 );

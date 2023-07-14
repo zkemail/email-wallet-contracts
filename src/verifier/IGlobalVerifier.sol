@@ -2,17 +2,6 @@
 pragma solidity ^0.8.9;
 
 interface IGlobalVerifier {
-    // function verifyPointerInclusionProof(
-    //     bytes32 valueCommit,
-    //     bytes32 nullifierCommit,
-    //     bytes32 relayerHash,
-    //     uint nonce,
-    //     bytes32 vkIndicator,
-    //     bytes32 senderEmailAddrCommit,
-    //     bytes32 recipientEmailAddrCommit,
-    //     bytes memory proof
-    // ) external view returns (bool);
-
     function verifyAnonMapInclusionProof(
         bytes32 valuesRoot,
         bytes32 nullifiersRoot,
@@ -46,8 +35,8 @@ interface IGlobalVerifier {
         bytes32 viewingKeysRoot,
         bytes32 nullifiersRoot,
         bytes32 relayerHash,
-        bytes32 senderEmailAddrCommit,
-        bytes32 recipientEmailAddrCommit,
+        bytes32 emailAddrCommit,
+        // bytes32 recipientEmailAddrCommit,
         bytes32 viewingKeyCommit,
         bytes memory proof
     ) external view returns (bool);
@@ -57,8 +46,8 @@ interface IGlobalVerifier {
         bytes32 newViewingKeysRoot,
         bytes32 nullifiersRoot,
         bytes32 relayerHash,
-        bytes32 senderEmailAddrCommit,
-        bytes32 recipientEmailAddrCommit,
+        bytes32 emailAddrCommit,
+        // bytes32 recipientEmailAddrCommit,
         bytes32 viewingKeyCommit,
         bytes32 pointer,
         bytes32 indicator,
@@ -70,10 +59,28 @@ interface IGlobalVerifier {
         bytes32 newNullifierRoot,
         bytes32 viewingKeysRoot,
         bytes32 relayerHash,
-        bytes32 senderEmailAddrCommit,
-        bytes32 recipientEmailAddrCommit,
+        bytes32 emailAddrCommit,
+        // bytes32 recipientEmailAddrCommit,
         bytes32 viewingKeyCommit,
         bytes32 nullifier,
+        bytes memory proof
+    ) external view returns (bool);
+
+    function verifyEmailProof(
+        bytes32 senderEmailAddrCommit,
+        bytes32 recipientEmailAddrCommit,
+        bytes32 emailNullifier,
+        bytes32 pubKeyHash,
+        bytes32 domainHash,
+        string memory maskedSubjectStr,
+        bool isSubjectAddrNull,
+        bytes memory proof
+    ) external view returns (bool);
+
+    function verifyWalletProof(
+        bytes32 viewingKeyCommit,
+        uint randomNonce,
+        bytes32 walletSalt,
         bytes memory proof
     ) external view returns (bool);
 }

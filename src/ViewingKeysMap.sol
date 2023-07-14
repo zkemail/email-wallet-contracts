@@ -4,32 +4,30 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./verifier/IGlobalVerifier.sol";
 
 contract ViewingKeysMap is Ownable {
-    address public verifier;
+    address public verifierAddr;
     bytes32 public viewingKeysRoot;
     bytes32 public nullifiersRoot;
     mapping(bytes32 => bytes32) public indicatorOfPointer;
     mapping(bytes32 => bool) public indicators;
     mapping(bytes32 => bool) public nullifiers;
 
-    constructor(address _verifier) {
-        verifier = _verifier;
+    constructor(address _verifierAddr) {
+        verifierAddr = _verifierAddr;
     }
 
     function isMapped(
         bytes32 relayerHash,
-        bytes32 senderEmailAddrCommit,
-        bytes32 recipientEmailAddrCommit,
+        bytes32 emailAddrCommit,
         bytes32 viewingKeyCommit,
         bytes memory proof
     ) external view returns (bool) {
-        IGlobalVerifier verifier = IGlobalVerifier(verifier);
+        IGlobalVerifier verifier = IGlobalVerifier(verifierAddr);
         return
             verifier.verifyViewingKeysMapInclusionProof(
                 viewingKeysRoot,
                 nullifiersRoot,
                 relayerHash,
-                senderEmailAddrCommit,
-                recipientEmailAddrCommit,
+                emailAddrCommit,
                 viewingKeyCommit,
                 proof
             );
@@ -38,22 +36,20 @@ contract ViewingKeysMap is Ownable {
     function insert(
         bytes32 newViewingKeysRoot,
         bytes32 relayerHash,
-        bytes32 senderEmailAddrCommit,
-        bytes32 recipientEmailAddrCommit,
+        bytes32 emailAddrCommit,
         bytes32 viewingKeyCommit,
         bytes32 newPointer,
         bytes32 indicator,
         bytes memory proof
     ) external onlyOwner {
-        IGlobalVerifier verifier = IGlobalVerifier(verifier);
+        IGlobalVerifier verifier = IGlobalVerifier(verifierAddr);
         require(
             verifier.verifyViewingKeysMapInsertProof(
                 viewingKeysRoot,
                 newViewingKeysRoot,
                 nullifiersRoot,
                 relayerHash,
-                senderEmailAddrCommit,
-                recipientEmailAddrCommit,
+                emailAddrCommit,
                 viewingKeyCommit,
                 newPointer,
                 indicator,
@@ -68,21 +64,19 @@ contract ViewingKeysMap is Ownable {
     function remove(
         bytes32 newNullifiersRoot,
         bytes32 relayerHash,
-        bytes32 senderEmailAddrCommit,
-        bytes32 recipientEmailAddrCommit,
+        bytes32 emailAddrCommit,
         bytes32 viewingKeyCommit,
         bytes32 nullifier,
         bytes memory proof
     ) external onlyOwner {
-        IGlobalVerifier verifier = IGlobalVerifier(verifier);
+        IGlobalVerifier verifier = IGlobalVerifier(verifierAddr);
         require(
             verifier.verifyViewingKeysMapRemoveProof(
                 nullifiersRoot,
                 newNullifiersRoot,
                 viewingKeysRoot,
                 relayerHash,
-                senderEmailAddrCommit,
-                recipientEmailAddrCommit,
+                emailAddrCommit,
                 viewingKeyCommit,
                 nullifier,
                 proof
