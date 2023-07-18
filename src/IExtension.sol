@@ -59,11 +59,13 @@ interface IExtension {
     // ) external view returns (string memory);
 
     function buildValidationParams(
-        bytes memory extensionParams
+        bytes memory extensionParams,
+        bool isRecipientInitialized
     ) external pure returns (ExtValidationParams memory);
 
     function execute(
         bytes memory extensionParams,
+        bool isRecipientInitialized,
         Wallets.TransferRequest memory transferRequest,
         bytes memory senderAnonMapValue,
         bytes memory recipientAnonMapValue

@@ -12,7 +12,7 @@ contract PendingValues {
     bytes[] public pendingOldValues;
     bytes[] public pendingNewValues;
 
-    struct ProcessPendingValueParams {
+    struct ProcessPendingValueOperation {
         bytes32 newValuesRoot;
         bytes32 newNullifierRoot;
         bytes32 valueCommit;
@@ -34,22 +34,22 @@ contract PendingValues {
     }
 
     function _processPendingValue(
-        ProcessPendingValueParams memory params
+        ProcessPendingValueOperation memory op
     ) internal {
         AnonMap anonMap = AnonMap(pendingAnonMaps[0]);
         anonMap.insert(
-            params.newValuesRoot,
+            op.newValuesRoot,
             pendingViewingKeyCommits[0],
-            params.valueCommit,
+            op.valueCommit,
             pendingNewValues[0],
-            params.insertProof
+            op.insertProof
         );
         anonMap.remove(
-            params.newNullifierRoot,
+            op.newNullifierRoot,
             pendingViewingKeyCommits[0],
-            params.nullifier,
+            op.nullifier,
             pendingOldValues[0],
-            params.removeProof
+            op.removeProof
         );
         pendingAnonMaps.pop();
         pendingViewingKeyCommits.pop();

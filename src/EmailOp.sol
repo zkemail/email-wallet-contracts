@@ -12,18 +12,19 @@ import "./IExtension.sol";
 import "./PendingValues.sol";
 
 contract EmailOp is Relayers, Wallets, PendingValues {
-    // address public verifierMap;
+    /// Anon mapping of the extension address for each command name.
     mapping(string => address) public extensionAddrOfCommandMap;
+    /// Used email nullifiers.
     mapping(bytes32 => bool) public emailNullifiers;
+    /// Pubkey hash of the domain hash.
     mapping(bytes32 => bytes32) public pubkeyHashOfDomainHash;
+    /// Anon mapping that each extension uses.
     mapping(string => address) public extensionAnonMapOfCommand;
 
     constructor(
         address _globalVerifier,
         uint _verifierListUpdateFrequency
-    ) Relayers(_globalVerifier, _verifierListUpdateFrequency) {
-        // verifierMap = address(new AnonMap(globalVerifier));
-    }
+    ) Relayers(_globalVerifier, _verifierListUpdateFrequency) {}
 
     struct EmailOperation {
         address recipientRelayer;
@@ -32,16 +33,11 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         bytes32 recipientEmailAddrCommit;
         bytes32 senderViewingKeyCommit;
         bytes32 recipientViewingKeyCommit;
-        // bytes cvkCommit;
-        /// viewing key inclusion proof for the sender's svk.
-        bytes senderViewingKeyInclusionProof;
-        /// viewing key inclusion proof for the recipient's svk.
-        bytes recipientViewingKeyInclusionProof;
-        /// viewing key inclusion proof for the sender's cvk.
-        // bytes cvkInclusionProof;
-        /// verifier address inclusion proof.
-        // address verifier;
-        // bytes verifierInclusionProof;
+        /// viewing key inclusion proof for the sender's viewing key.
+        bytes senderViewingKeyMappingProof;
+        /// viewing key inclusion proof for the recipient's viewing key.
+        bytes recipientViewingKeyMappingProof;
+        bool isRecipientInitialized;
         /// command name.
         string command;
         /// email proof
@@ -52,17 +48,15 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         bool isSubjectAddrNull;
         bytes emailProof;
         /// wallet
-        bytes walletProofs;
+        bytes walletSaltProofs;
         uint transferAmount;
         string tokenName;
+        uint deferBlockNumber;
         /// extension
         bytes extensionParamsAndProof;
     }
 
-    struct WalletProof {
-        // bytes32 cvkCommit;
-        // bytes32 oldSenderEmailAddrCommit;
-        // bytes cvkInclusionProof;
+    struct WalletSaltProof {
         uint randomNonce;
         bytes32 walletSalt;
         bytes proof;
@@ -79,26 +73,29 @@ contract EmailOp is Relayers, Wallets, PendingValues {
     }
 
     function _validateEmailOp(EmailOperation memory emailOp) internal view {
-        /// Check self viewing keys.
-        // require(
-        //     emailOp.verifier != address(0),
-        //     "verifier must not be zero address"
-        // );
+        /// Check viewing keys.
         IGlobalVerifier globalVerifier = IGlobalVerifier(globalVerifier);
-        RelayerConfig memory relayerConfig = relayerConfigs[msg.sender];
-        AnonMap viewingKeysMap = AnonMap(relayerConfig.viewingKeysMap);
+        RelayerConfig memory senderRelayerConfig = relayerConfigs[msg.sender];
+        ViewingKeysMap senderViewingKeysMap = ViewingKeysMap(
+            senderRelayerConfig.viewingKeysMap
+        );
+        /// Verify a mapping from the sender's email address to the sender's viewing key.
+        /// The sender's account must exist and be initialized.
         require(
-            globalVerifier.verifyViewingKeysMapInclusionProof(
-                viewingKeysMap.valuesRoot(),
-                viewingKeysMap.nullifiersRoot(),
-                relayerConfig.relayerHash,
+            senderViewingKeysMap.mapViewingKey(
                 emailOp.senderEmailAddrCommit,
                 emailOp.senderViewingKeyCommit,
-                emailOp.senderViewingKeyInclusionProof
+                true,
+                true,
+                emailOp.senderViewingKeyMappingProof
             ),
-            "invalid sender's svk inclusion proof."
+            "invalid sender's viewing key."
         );
-        if (emailOp.recipientRelayer != address(0)) {
+        if (!emailOp.isSubjectAddrNull) {
+            require(
+                emailOp.recipientRelayer != address(0),
+                "recipientRelayer must not be zero address"
+            );
             require(
                 relayers[emailOp.recipientRelayer],
                 "recipient relayer not registered"
@@ -106,33 +103,37 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             RelayerConfig memory recipientRelayerConfig = relayerConfigs[
                 emailOp.recipientRelayer
             ];
+            ViewingKeysMap recipientViewingKeysMap = ViewingKeysMap(
+                recipientRelayerConfig.viewingKeysMap
+            );
+            /// Verify a mapping from the recipient's email address to the recipient's viewing key.
+            /// The recipient's account must exist but can be uninitialized.
             require(
-                globalVerifier.verifyViewingKeysMapInclusionProof(
-                    viewingKeysMap.valuesRoot(),
-                    viewingKeysMap.nullifiersRoot(),
-                    recipientRelayerConfig.relayerHash,
+                recipientViewingKeysMap.mapViewingKey(
                     emailOp.recipientEmailAddrCommit,
                     emailOp.recipientViewingKeyCommit,
-                    emailOp.recipientViewingKeyInclusionProof
+                    true,
+                    emailOp.isRecipientInitialized,
+                    emailOp.recipientViewingKeyMappingProof
                 ),
-                "invalid recipient's svk inclusion proof."
+                "invalid sender's viewing key."
+            );
+        } else {
+            require(
+                emailOp.senderEmailAddrCommit ==
+                    emailOp.recipientEmailAddrCommit,
+                "senderEmailAddrCommit must be equal to recipientEmailAddrCommit when the recipient is not specified in the subject"
+            );
+            require(
+                emailOp.senderViewingKeyCommit ==
+                    emailOp.recipientViewingKeyCommit,
+                "senderViewingKeyCommit must be equal to recipientViewingKeyCommit when the recipient is not specified in the subject"
+            );
+            require(
+                emailOp.isRecipientInitialized,
+                "recipient must be initialized as sender==recipient when the recipient is not specified in the subject"
             );
         }
-
-        /// Check verifier addresses.
-        // AnonMap verifierMap = AnonMap(verifierMap);
-        // require(
-        //     emailOp.verifier != address(0),
-        //     "verifier must not be zero address"
-        // );
-        // require(
-        //     verifierMap.isStored(
-        //         emailOp.senderSvkCommit,
-        //         abi.encodePacked(emailOp.verifier),
-        //         emailOp.verifierInclusionProof
-        //     ),
-        //     "invalid verifier inclusion proof"
-        // );
 
         /// Check email proof.
         require(
@@ -143,7 +144,6 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             pubkeyHashOfDomainHash[emailOp.domainHash] == emailOp.pubKeyHash,
             "invalid pubkey hash"
         );
-        // ILocalVerifier localVerifier = ILocalVerifier(emailOp.verifier);
         require(
             globalVerifier.verifyEmailProof(
                 emailOp.senderEmailAddrCommit,
@@ -159,38 +159,79 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         );
 
         /// Check wallet proofs.
-        if (emailOp.walletProofs.length != 0) {
-            (
-                WalletProof[] memory senderWalletProofs,
-                WalletProof memory recipientWalletProof
-            ) = abi.decode(emailOp.walletProofs, (WalletProof[], WalletProof));
-            for (uint i = 0; i < senderWalletProofs.length; i++) {
-                require(
-                    globalVerifier.verifyWalletProof(
-                        emailOp.senderViewingKeyCommit,
-                        senderWalletProofs[i].randomNonce,
-                        senderWalletProofs[i].walletSalt,
-                        senderWalletProofs[i].proof
-                    )
-                );
-            }
+        require(
+            emailOp.walletSaltProofs.length != 0,
+            "wallet salt proofs must not be empty"
+        );
+        (
+            WalletSaltProof[] memory senderWalletSaltProofs,
+            WalletSaltProof memory recipientWalletSaltProof
+        ) = abi.decode(
+                emailOp.walletSaltProofs,
+                (WalletSaltProof[], WalletSaltProof)
+            );
+        for (uint i = 0; i < senderWalletSaltProofs.length; i++) {
+            /// Verify the sender's wallet salt is correctly derived from the sender's viewing key.
             require(
-                globalVerifier.verifyWalletProof(
-                    emailOp.recipientViewingKeyCommit,
-                    recipientWalletProof.randomNonce,
-                    recipientWalletProof.walletSalt,
-                    recipientWalletProof.proof
+                globalVerifier.verifyWalletSaltProof(
+                    emailOp.senderViewingKeyCommit,
+                    senderWalletSaltProofs[i].randomNonce,
+                    senderWalletSaltProofs[i].walletSalt,
+                    senderWalletSaltProofs[i].proof
                 )
             );
-            /// [TODO] Check the token name.
-            /// [TODO] Check the balance sum >= transfer amount.
         }
+        /// Verify the recipient's wallet salt is correctly derived from the recipient's viewing key.
+        require(
+            globalVerifier.verifyWalletSaltProof(
+                emailOp.recipientViewingKeyCommit,
+                recipientWalletSaltProof.randomNonce,
+                recipientWalletSaltProof.walletSalt,
+                recipientWalletSaltProof.proof
+            )
+        );
+        require(
+            emailOp.deferBlockNumber != 0,
+            "defer block number must not be zero"
+        );
+        /// If the recipient is initialized, deferring the transfer is not allowed.
+        require(
+            emailOp.isRecipientInitialized &&
+                (emailOp.deferBlockNumber == type(uint256).max),
+            "defer block number must be max uint256 if the recipient is initialized"
+        );
+        /// [TODO] Check the token name.
+        /// [TODO] Check the balance sum >= transfer amount.
+        /// [TODO] Check that deferBlockNumber is specified in the subject.
 
-        /// Check extension params and proof.
         if (
-            keccak256(bytes(emailOp.command)) !=
+            keccak256(bytes(emailOp.command)) ==
             keccak256(bytes(Constants.WALLET_COMMAND))
         ) {
+            /// Check subject string.
+            string memory subjectExpected = string.concat(
+                Constants.SUBJECT_PREFIX,
+                Constants.WALLET_COMMAND,
+                ": "
+                // [TODO] Concat "(tansfer amount) (token name) to".
+            );
+            require(
+                keccak256(bytes(emailOp.maskedSubjectStr)) ==
+                    keccak256(bytes(subjectExpected)),
+                "invalid subject string"
+            );
+        } else if (
+            keccak256(bytes(emailOp.command)) ==
+            keccak256(bytes(Constants.EXT_MANAGER_COMMAND))
+        ) {
+            // [TODO] Check the subject.
+        } else if (
+            keccak256(bytes(emailOp.command)) ==
+            keccak256(bytes(Constants.TRANSPORT_COMMAND))
+        ) {
+            // [TODO] Check the subject.
+        } else {
+            /// Check extension params and proof.
             ExtensionParamsAndProof memory extensionParamsAndProof = abi.decode(
                 emailOp.extensionParamsAndProof,
                 (ExtensionParamsAndProof)
@@ -203,6 +244,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 "extension does not exist"
             );
             AnonMap extensionAddrMap = AnonMap(extensionAddrMapAddr);
+            /// Verify that the extension address is correctly retrieved from `extensionAddrMap` for the sender's viewing key.
             require(
                 extensionAddrMap.isStored(
                     emailOp.senderViewingKeyCommit,
@@ -220,7 +262,8 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             );
             IExtension.ExtValidationParams
                 memory extValidationParams = extension.buildValidationParams(
-                    extensionParamsAndProof.extensionParams
+                    extensionParamsAndProof.extensionParams,
+                    emailOp.isRecipientInitialized
                 );
             /// Check subject string.
             string memory subjectExpected = string.concat(
@@ -238,6 +281,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             address anonMapAddr = extensionAnonMapOfCommand[emailOp.command];
             require(anonMapAddr != address(0), "anon map does not exist");
             AnonMap anonMap = AnonMap(anonMapAddr);
+            /// The extension requests a value in the anon map for the sender's viewing key.
             if (extValidationParams.getSenderAnonMap) {
                 require(
                     extensionParamsAndProof.senderAnonMapValue.length != 0,
@@ -252,6 +296,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                     "invalid sender anon map inclusion proof"
                 );
             }
+            /// The extension requests a value in the anon map for the recipient's viewing key.
             if (extValidationParams.getRecipientAnonMap) {
                 require(
                     extensionParamsAndProof.recipientAnonMapValue.length != 0,
@@ -266,21 +311,42 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                     "invalid recipient anon map inclusion proof"
                 );
             }
+            /// The requested transfer is the same as (emailOp.transferAmount, emailOp.tokenName).
+            require(
+                extValidationParams.transferRequest.amount ==
+                    emailOp.transferAmount,
+                "invalid transfer amount"
+            );
+            /// [TODO] Convert `emailOp.tokenName` to the corresponding ERC20 address and verify that it is equal to the `extValidationParams.transferRequest.token`.
         }
     }
 
     function _executeEmailOp(EmailOperation memory emailOp) internal {
+        emailNullifiers[emailOp.emailNullifier] = true;
         if (
             keccak256(bytes(emailOp.command)) ==
             keccak256(bytes(Constants.WALLET_COMMAND))
         ) {
             /// token transfer
             (
-                WalletProof[] memory senderWalletProofs,
-                WalletProof memory recipientWalletProof
-            ) = abi.decode(emailOp.walletProofs, (WalletProof[], WalletProof));
+                WalletSaltProof[] memory senderWalletSaltProofs,
+                WalletSaltProof memory recipientWalletSaltProof
+            ) = abi.decode(
+                    emailOp.walletSaltProofs,
+                    (WalletSaltProof[], WalletSaltProof)
+                );
             /// [TODO] Convert token name to token address.
             /// [TODO] Construct Wallets.TransferRequest and call _processTransferRequest.
+        } else if (
+            keccak256(bytes(emailOp.command)) ==
+            keccak256(bytes(Constants.EXT_MANAGER_COMMAND))
+        ) {
+            /// [TODO] Modfiy `extensionAddrOfCommandMap` for the installed extension and create its `extensionAnonMap`.
+        } else if (
+            keccak256(bytes(emailOp.command)) ==
+            keccak256(bytes(Constants.EXT_MANAGER_COMMAND))
+        ) {
+            /// [TODO] Add nullifier to the user's current relayer's nullifiers tree and a pointer, an indicator, and an initializer to a new relayer's viewing keys tree and initializer tree.
         } else {
             /// call extension
             ExtensionParamsAndProof memory extensionParamsAndProof = abi.decode(
@@ -292,7 +358,8 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             );
             IExtension.ExtValidationParams
                 memory extValidationParams = extension.buildValidationParams(
-                    extensionParamsAndProof.extensionParams
+                    extensionParamsAndProof.extensionParams,
+                    emailOp.isRecipientInitialized
                 );
             if (extValidationParams.transferRequest.amount > 0) {
                 /// [TODO] Convert token name to token address.
@@ -309,6 +376,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             }
             IExtension.ExtResult memory extResult = extension.execute(
                 extensionParamsAndProof.extensionParams,
+                emailOp.isRecipientInitialized,
                 extValidationParams.transferRequest,
                 senderAnonMapValue,
                 recipientAnonMapValue

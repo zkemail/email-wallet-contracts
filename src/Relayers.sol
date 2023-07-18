@@ -40,7 +40,7 @@ contract Relayers {
             block.timestamp +
             verifierListUpdateFrequency;
         relayerConfig.viewingKeysMap = address(
-            new ViewingKeysMap(globalVerifier)
+            new ViewingKeysMap(globalVerifier, _relayerHash)
         );
         relayerConfigs[msg.sender] = relayerConfig;
         for (uint i = 0; i < _supportedVerifierList.length; i++) {

@@ -15,6 +15,8 @@ pragma solidity ^0.8.0;
 library Constants {
     string public constant SUBJECT_PREFIX = "Email ";
     string public constant WALLET_COMMAND = "wallet";
+    string public constant TRANSPORT_COMMAND = "transport";
+    string public constant EXT_MANAGER_COMMAND = "extensions";
     // uint256 public constant WALLET_EXTENSION_ID = 0;
     // string public constant CONFIG_EXTENSION_COMMAND = "config";
     // uint256 public constant CONFIG_EXTENSION_ID = 1;
