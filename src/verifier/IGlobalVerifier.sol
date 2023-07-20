@@ -2,8 +2,14 @@
 pragma solidity ^0.8.9;
 
 interface IGlobalVerifier {
-    function verifyAnonMapInclusionProof(
+    function verifyAnonMapValueInclusionProof(
         bytes32 valuesRoot,
+        bytes32 viewingKeyCommit,
+        bytes32 valueHash,
+        bytes memory proof
+    ) external view returns (bool);
+
+    function verifyAnonMapIsNullifiedProof(
         bytes32 nullifiersRoot,
         bytes32 viewingKeyCommit,
         bytes32 valueHash,
@@ -13,7 +19,6 @@ interface IGlobalVerifier {
     function verifyAnonMapInsertProof(
         bytes32 oldValuesRoot,
         bytes32 newValuesRoot,
-        bytes32 nullifiersRoot,
         bytes32 viewingKeyCommit,
         bytes32 valueHash,
         uint nonce,
@@ -21,10 +26,9 @@ interface IGlobalVerifier {
         bytes memory proof
     ) external view returns (bool);
 
-    function verifyAnonMapRemoveProof(
+    function verifyAnonMapNullifyProof(
         bytes32 oldNullifiersRoot,
         bytes32 newNullifiersRoot,
-        bytes32 valuesRoot,
         bytes32 viewingKeyCommit,
         bytes32 valueHash,
         bytes32 nullifier,
@@ -90,7 +94,7 @@ interface IGlobalVerifier {
         bytes32 recipientEmailAddrCommit,
         bytes32 emailNullifier,
         bytes32 pubKeyHash,
-        bytes32 domainHash,
+        string memory domainName,
         string memory maskedSubjectStr,
         bool isSubjectAddrNull,
         bytes memory proof
@@ -100,7 +104,7 @@ interface IGlobalVerifier {
         bytes32 emailAddrCommit,
         bytes32 emailNullifier,
         bytes32 pubKeyHash,
-        bytes32 domainHash,
+        string memory domainName,
         bytes32 viewingKeyCommit,
         bytes memory proof
     ) external view returns (bool);

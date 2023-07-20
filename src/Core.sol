@@ -35,7 +35,7 @@ contract Core is EmailOp {
         bytes32 newInitializer;
         bytes32 emailNullifier;
         bytes32 pubKeyHash;
-        bytes32 domainHash;
+        string domainName;
         bytes psiPoint;
         bytes mappingProof;
         bytes initializationProof;
@@ -123,8 +123,8 @@ contract Core is EmailOp {
             );
             /// The pubkey hash is correct for the domain.
             require(
-                pubkeyHashOfDomainHash[
-                    accountInitializationOps[i].domainHash
+                pubkeyHashOfDomainName[
+                    accountInitializationOps[i].domainName
                 ] == accountInitializationOps[i].pubKeyHash,
                 "invalid pubkey hash"
             );
@@ -134,7 +134,7 @@ contract Core is EmailOp {
                     accountInitializationOps[i].emailAddrCommit,
                     accountInitializationOps[i].emailNullifier,
                     accountInitializationOps[i].pubKeyHash,
-                    accountInitializationOps[i].domainHash,
+                    accountInitializationOps[i].domainName,
                     accountInitializationOps[i].viewingKeyCommit,
                     accountInitializationOps[i].emailProof
                 ),

@@ -16,8 +16,8 @@ contract EmailOp is Relayers, Wallets, PendingValues {
     mapping(string => address) public extensionAddrOfCommandMap;
     /// Used email nullifiers.
     mapping(bytes32 => bool) public emailNullifiers;
-    /// Pubkey hash of the domain hash.
-    mapping(bytes32 => bytes32) public pubkeyHashOfDomainHash;
+    /// Pubkey hash of the domain name.
+    mapping(string => bytes32) public pubkeyHashOfDomainName;
     /// Anon mapping that each extension uses.
     mapping(string => address) public extensionAnonMapOfCommand;
 
@@ -43,7 +43,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
         /// email proof
         bytes32 emailNullifier;
         bytes32 pubKeyHash;
-        bytes32 domainHash;
+        string domainName;
         string maskedSubjectStr;
         bool isSubjectAddrNull;
         bytes emailProof;
@@ -141,7 +141,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
             "email nullifier already used"
         );
         require(
-            pubkeyHashOfDomainHash[emailOp.domainHash] == emailOp.pubKeyHash,
+            pubkeyHashOfDomainName[emailOp.domainName] == emailOp.pubKeyHash,
             "invalid pubkey hash"
         );
         require(
@@ -150,7 +150,7 @@ contract EmailOp is Relayers, Wallets, PendingValues {
                 emailOp.recipientEmailAddrCommit,
                 emailOp.emailNullifier,
                 emailOp.pubKeyHash,
-                emailOp.domainHash,
+                emailOp.domainName,
                 emailOp.maskedSubjectStr,
                 emailOp.isSubjectAddrNull,
                 emailOp.emailProof

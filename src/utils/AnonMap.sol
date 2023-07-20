@@ -29,13 +29,22 @@ contract AnonMap is Ownable {
     ) external view returns (bool) {
         IGlobalVerifier verifier = IGlobalVerifier(verifierAddr);
         bytes32 valueHash = keccak256(value);
+        (bytes memory valueProof, bytes memory nullifierProof) = abi.decode(
+            proof,
+            (bytes, bytes)
+        );
         return
-            verifier.verifyAnonMapInclusionProof(
+            verifier.verifyAnonMapValueInclusionProof(
                 valuesRoot,
+                viewingKeyCommit,
+                valueHash,
+                valueProof
+            ) &&
+            verifier.verifyAnonMapIsNullifiedProof(
                 nullifiersRoot,
                 viewingKeyCommit,
                 valueHash,
-                proof
+                nullifierProof
             );
     }
 
@@ -52,7 +61,6 @@ contract AnonMap is Ownable {
             verifier.verifyAnonMapInsertProof(
                 valuesRoot,
                 newValuesRoot,
-                nullifiersRoot,
                 viewingKeyCommit,
                 valueHash,
                 valueNonce[valueHash],
@@ -75,10 +83,9 @@ contract AnonMap is Ownable {
         IGlobalVerifier verifier = IGlobalVerifier(verifierAddr);
         bytes32 valueHash = keccak256(value);
         require(
-            verifier.verifyAnonMapRemoveProof(
+            verifier.verifyAnonMapNullifyProof(
                 nullifiersRoot,
                 newNullifierRoot,
-                valuesRoot,
                 viewingKeyCommit,
                 valueHash,
                 nullifier,
